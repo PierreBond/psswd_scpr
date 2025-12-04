@@ -8,6 +8,11 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import pyperclip
 from typing import Optional
+import pyotp
+import pyqrcode
+import tempfile
+import webbrowser
+from tkinter import PhotoImage
 
 DB_NAME = "passwords.db"
 
@@ -44,25 +49,33 @@ class PasswordManager:
     def create_master_password(self):
         master = simpledialog.askstring("Setup","CReate a strong Master Password:", show='*')
         if master and len(master) >= 8:
-            salt = os.urandom(16)  
-            key = derive_key(master, salt)
-            self.fernet = Fernet(key)
+            # salt = os.urandom(16)  
+            # key = derive_key(master, salt)
+            # self.fernet = Fernet(key)
+            messagebox.showerror("Error", "Master password must be 8+ characters")
+            self.root.quit()
+            return
+            
+            #Generate TOTP secret
+            totp_secret = pyotp.random_base32(32)
 
-            conn = sqlite3.connect(DB_NAME)
-            c = conn.cursor()
-            c.execute('''CREATE TABLE vault(
-                      id INTEGER PRIMARY KEY
-                      website TEXT ONT NULL,
-                      username TEXT,
-                      password TEXT NOT NULL,
-                      notes TEXT
-                      )''')
-            c.execute(" CREATE TABLE master (salt BLOB)")
-            c.execute("INSERT INTO master (salt) VALUES (?)", (salt,))
-            conn.commit()
-            conn.close()
-            messagebox.showinfo("Success", "Password Manager Created")
-            self.setup_gui()
+
+
+            # conn = sqlite3.connect(DB_NAME)
+            # c = conn.cursor()
+            # c.execute('''CREATE TABLE vault(
+            #           id INTEGER PRIMARY KEY
+            #           website TEXT ONT NULL,
+            #           username TEXT,
+            #           password TEXT NOT NULL,
+            #           notes TEXT
+            #           )''')
+            # c.execute(" CREATE TABLE master (salt BLOB)")
+            # c.execute("INSERT INTO master (salt) VALUES (?)", (salt,))
+            # conn.commit()
+            # conn.close()
+            # messagebox.showinfo("Success", "Password Manager Created")
+            # self.setup_gui()
         else:
             messagebox.showerror("Error", "Master Password must be at least 8+ characters")
             self.root.quit()
