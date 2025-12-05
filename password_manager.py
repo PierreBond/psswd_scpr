@@ -74,6 +74,19 @@ class PasswordManager:
             qr_window.title("Scan with Aithenticator App")
             qr_window.geometry("300x350")
 
+            img = PhotoImage(file=qr_path)
+            label = tk.Label(qr_window, image=img)
+            label.image = img #keep reference
+            label.pack(pady=10)
+
+            tk.Label(qr_window, text="Scan this QR code with your\n Authenticator App",
+                     justify=tk.CENTER, font=("Arial", 10)).pack(pady=10)
+            tk.Label(qr_window, text=f"or enter manually:\n{totp_SEcret}",
+                     font=("Courier",9), bg="#f0f0f0", relief=tk.SOLID, padx=10, pady=10).pack(pady=10)
+            
+            def verify_2fa():
+                code = simpledialog.askstring("2FA")
+
 
 
             # conn = sqlite3.connect(DB_NAME)
