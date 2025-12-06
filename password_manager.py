@@ -134,19 +134,35 @@ class PasswordManager:
             messagebox.showerror("Error", "database corrupted")
             self.root.quit()
             return
-            salt = row[0]
+            salt , encrypted_totp= row
             key = derive_key(master, salt)
+
             try :
                 self.fernet = Fernet(key)
+                totp_secret = self.fernet.decrypt(encrypted_totp.encode()).decode()
                 # test decryption with dummy datat if needed 
-                self.master_password = master 
+                # self.master_password = master 
                 return
             except :
                 messagebox.showerror("Error", "Invalid Master Password")
                 self.ask_master_password()
-        else:
-            messagebox.showerror("Error", "database corrupted")
-            self.root.quit()
+                return
+            
+            # ask for 2fa
+            code = simpledialog.askstring("2FA Required", "Enter 6-digit code from Authenticator app:", show='*')
+            if code and pyotp.TOTP(totp_secret).verify(code):
+                self.master_password = master 
+                self.setup_gui()
+                self.load_passwords()
+
+            else:
+                messagebox.showerror("Access Denied", "Invalid 2FA code")
+                self.ask_master_password()    
+
+
+        # else:
+        #     messagebox.showerror("Error", "database corrupted")
+        #     self.root.quit()
 
     def setup_gui(self):
         #search bar 
