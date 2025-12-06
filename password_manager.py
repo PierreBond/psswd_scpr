@@ -56,68 +56,68 @@ class PasswordManager:
             self.root.quit()
             return
             
-            #Generate TOTP secret
-            totp_secret = pyotp.random_base32(32)
-            totp_uri = pyotp.totp.TOTP(totp_secret).provisioning_uri(
-                name="LocalPasswordManager",
-                issuer_name="MyPasswordManager"
-            )
+        #Generate TOTP secret
+        totp_secret = pyotp.random_base32(32)
+        totp_uri = pyotp.totp.TOTP(totp_secret).provisioning_uri(
+            name="LocalPasswordManager",
+            issuer_name="MyPasswordManager"
+        )
 
-            #Create QR code 
-            qr = pyqrcode.create(totp_uri)
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                qr.png(tmp.name, scale=6)
-                qr_path = tmp.name
+        #Create QR code 
+        qr = pyqrcode.create(totp_uri)
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            qr.png(tmp.name, scale=6)
+            qr_path = tmp.name
 
-            # Show QR code
-            qr_window = tk.Toplevel(self.root)
-            qr_window.title("Scan with Aithenticator App")
-            qr_window.geometry("300x350")
+        # Show QR code
+        qr_window = tk.Toplevel(self.root)
+        qr_window.title("Scan with Aithenticator App")
+        qr_window.geometry("300x350")
 
-            img = PhotoImage(file=qr_path)
-            label = tk.Label(qr_window, image=img)
-            label.image = img #keep reference
-            label.pack(pady=10)
+        img = PhotoImage(file=qr_path)
+        label = tk.Label(qr_window, image=img)
+        label.image = img #keep reference
+        label.pack(pady=10)
 
-            tk.Label(qr_window, text="Scan this QR code with your\n Authenticator App",
-                     justify=tk.CENTER, font=("Arial", 10)).pack(pady=10)
-            tk.Label(qr_window, text=f"or enter manually:\n{totp_SEcret}",
-                     font=("Courier",9), bg="#f0f0f0", relief=tk.SOLID, padx=10, pady=10).pack(pady=10)
-            
-            def verify_2fa():
-                code = simpledialog.askstring("2FA Required", "Enter the 6-digit code from your app:",parent=qr_window)
-                if code and pyotp.TOTP(totp_secret).verify(code):
-                    qr_window.destroy()
-                    os.unlink(qr_path)
+        tk.Label(qr_window, text="Scan this QR code with your\n Authenticator App",
+                    justify=tk.CENTER, font=("Arial", 10)).pack(pady=10)
+        tk.Label(qr_window, text=f"or enter manually:\n{totp_secret}",
+                    font=("Courier",9), bg="#f0f0f0", relief=tk.SOLID, padx=10, pady=10).pack(pady=10)
+        
+        def verify_2fa():
+            code = simpledialog.askstring("2FA Required", "Enter the 6-digit code from your app:",parent=qr_window)
+            if code and pyotp.TOTP(totp_secret).verify(code):
+                qr_window.destroy()
+                os.unlink(qr_path)
 
-                    # save master password + encrypted TOTP secret
-                    salt = os.urandom(16)
-                    key = derive_key(master, salt)
-                    self.fernet = Fernet(key)
-                    encrypted_totp = self.fernet.encrypt(totp_secret.encode()).decode()
+                # save master password + encrypted TOTP secret
+                salt = os.urandom(16)
+                key = derive_key(master, salt)
+                self.fernet = Fernet(key)
+                encrypted_totp = self.fernet.encrypt(totp_secret.encode()).decode()
 
-                    conn = sqlite3.connect(DB_NAME)
-                    c = conn.cursor()
-                    c.execute('''CREATE TABLE IF NOT EXISTS vault(
-                                id INTEGER PRIMARY KEY
-                                website TEXT ONT NULL,
-                                username TEXT,
-                                password TEXT NOT NULL,
-                                notes TEXT
-                                )''')
-                    c.execute(" CREATE TABLE IF NOT EXISTSmaster (salt BLOB, totp_secret TEXT)")
-                    c.execute("INSERT INTO master (salt, totp_secret) VALUES (?. ?)", (salt, encrypted_totp))
-                    conn.commit()
-                    conn.close()
+                conn = sqlite3.connect(DB_NAME)
+                c = conn.cursor()
+                c.execute('''CREATE TABLE IF NOT EXISTS vault(
+                            id INTEGER PRIMARY KEY
+                            website TEXT ONT NULL,
+                            username TEXT,
+                            password TEXT NOT NULL,
+                            notes TEXT
+                            )''')
+                c.execute(" CREATE TABLE IF NOT EXISTSmaster (salt BLOB, totp_secret TEXT)")
+                c.execute("INSERT INTO master (salt, totp_secret) VALUES (?. ?)", (salt, encrypted_totp))
+                conn.commit()
+                conn.close()
 
-                    messagebox.showinfo("Success", "Password Manager Created with 2FA")
-                    self.setup_gui()
-                    self.load_passwords()
-            
-                else:
-                    messagebox.showerror("Error", "Master Password must be at least 8+ characters")
-                    # self.root.quit()
-            tk.Button(qr_window, text="Ive Scanned , Enter Code", command=verify_2fa, bg="#4CAF50", fg="white").pack(pady=10)
+                messagebox.showinfo("Success", "Password Manager Created with 2FA")
+                self.setup_gui()
+                self.load_passwords()
+        
+            else:
+                messagebox.showerror("Error", "Master Password must be at least 8+ characters")
+                # self.root.quit()
+        tk.Button(qr_window, text="Ive Scanned , Enter Code", command=verify_2fa, bg="#4CAF50", fg="white").pack(pady=10)
     def ask_master_password(self):
         master = simpledialog.askstring("Login", "Enter master Password:",show='*')
         if not master :
@@ -134,30 +134,30 @@ class PasswordManager:
             messagebox.showerror("Error", "database corrupted")
             self.root.quit()
             return
-            salt , encrypted_totp= row
-            key = derive_key(master, salt)
+        salt , encrypted_totp= row
+        key = derive_key(master, salt)
 
-            try :
-                self.fernet = Fernet(key)
-                totp_secret = self.fernet.decrypt(encrypted_totp.encode()).decode()
-                # test decryption with dummy datat if needed 
-                # self.master_password = master 
-                return
-            except :
-                messagebox.showerror("Error", "Invalid Master Password")
-                self.ask_master_password()
-                return
-            
-            # ask for 2fa
-            code = simpledialog.askstring("2FA Required", "Enter 6-digit code from Authenticator app:", show='*')
-            if code and pyotp.TOTP(totp_secret).verify(code):
-                self.master_password = master 
-                self.setup_gui()
-                self.load_passwords()
+        try :
+            self.fernet = Fernet(key)
+            totp_secret = self.fernet.decrypt(encrypted_totp.encode()).decode()
+            # test decryption with dummy datat if needed 
+            # self.master_password = master 
+            return
+        except :
+            messagebox.showerror("Error", "Invalid Master Password")
+            self.ask_master_password()
+            return
+        
+        # ask for 2fa
+        code = simpledialog.askstring("2FA Required", "Enter 6-digit code from Authenticator app:", show='*')
+        if code and pyotp.TOTP(totp_secret).verify(code):
+            self.master_password = master 
+            self.setup_gui()
+            self.load_passwords()
 
-            else:
-                messagebox.showerror("Access Denied", "Invalid 2FA code")
-                self.ask_master_password()    
+        else:
+            messagebox.showerror("Access Denied", "Invalid 2FA code")
+            self.ask_master_password()    
 
 
         # else:
