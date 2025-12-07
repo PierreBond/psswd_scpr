@@ -47,7 +47,7 @@ class PasswordManager:
             self.load_passwords()
 
     def create_master_password(self):
-        master = simpledialog.askstring("Setup","CReate a strong Master Password:", show='*')
+        master = simpledialog.askstring("Setup","Create a strong Master Password:", show='*')
         if master and len(master) < 8:
             # salt = os.urandom(16)  
             # key = derive_key(master, salt)
