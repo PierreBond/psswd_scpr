@@ -48,7 +48,7 @@ class PasswordManager:
 
     def create_master_password(self):
         master = simpledialog.askstring("Setup","CReate a strong Master Password:", show='*')
-        if master and len(master) >= 8:
+        if master and len(master) < 8:
             # salt = os.urandom(16)  
             # key = derive_key(master, salt)
             # self.fernet = Fernet(key)
@@ -100,13 +100,13 @@ class PasswordManager:
                 c = conn.cursor()
                 c.execute('''CREATE TABLE IF NOT EXISTS vault(
                             id INTEGER PRIMARY KEY
-                            website TEXT ONT NULL,
+                            website TEXT NOT NULL,
                             username TEXT,
                             password TEXT NOT NULL,
                             notes TEXT
                             )''')
-                c.execute(" CREATE TABLE IF NOT EXISTSmaster (salt BLOB, totp_secret TEXT)")
-                c.execute("INSERT INTO master (salt, totp_secret) VALUES (?. ?)", (salt, encrypted_totp))
+                c.execute(" CREATE TABLE IF NOT EXISTS master (salt BLOB, totp_secret TEXT)")
+                c.execute("INSERT INTO master (salt, totp_secret) VALUES (?, ?)", (salt, encrypted_totp))
                 conn.commit()
                 conn.close()
 
@@ -190,7 +190,7 @@ class PasswordManager:
 
         self.tree.heading("website", text= "Website/Service")
         self.tree.heading("username", text= "Username/Email")
-        self.tree.heading("Password", text= "Paswword")
+        self.tree.heading("Password", text= "Password")
         self.tree.heading("notes", text= "Notes")
 
         self.tree.column("website", width=180)
@@ -233,9 +233,9 @@ class PasswordManager:
                 password = "Decryption Error"
 
             website_lower =website.lower()  
-            username_lower = "" if not username else username.lowere()
+            username_lower = "" if not username else username.lower()
 
-            if self.tree in website_lower or search_item in username_lower:
+            if search_item in website_lower or search_item in username_lower:
                 self.tree.insert("", tk.END, values=(website, username or "","••••••••", notes or ""), tags=(id_))
 
 
@@ -344,7 +344,7 @@ class PasswordManager:
             pyperclip.copy(password)
             messagebox.showinfo("Copied", "Password copied to clipboard")
         except:
-            messagebox.showerror("Error", "Failes to decrypt password")
+            messagebox.showerror("Error", "Failed to decrypt password")
 
     def show_context_menu(self, event):
             try:
