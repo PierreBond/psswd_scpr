@@ -88,7 +88,7 @@ class PasswordManager:
             return
             
         #Generate TOTP secret
-        totp_secret = pyotp.random_base32(32)
+        totp_secret = pyotp.random_base32()
         totp_uri = pyotp.totp.TOTP(totp_secret).provisioning_uri(
             name="LocalPasswordManager",
             issuer_name="MyPasswordManager"
@@ -107,36 +107,41 @@ class PasswordManager:
 
         img = PhotoImage(file=qr_path)
         label = tk.Label(qr_window, image=img)
-        label.image = img #keep reference
+        label.image= img #keep reference
         label.pack(pady=10)
 
         tk.Label(qr_window, text="Scan this QR code with your\n Authenticator App",
-                    justify=tk.CENTER, font=("Arial", 10)).pack(pady=10)
+                    justify=tk.CENTER, font=("Arial", 10), wraplength=300).pack(pady=10)
         tk.Label(qr_window, text=f"or enter manually:\n{totp_secret}",
                     font=("Courier",9), bg="#f0f0f0", relief=tk.SOLID, padx=10, pady=10).pack(pady=10)
         
         def verify_2fa():
             code = simpledialog.askstring("2FA Required", "Enter the 6-digit code from your app:",parent=qr_window)
-            if code and pyotp.TOTP(totp_secret).verify(code):
-                qr_window.destroy()
-                os.unlink(qr_path)
+            if code and pyotp.TOTP(totp_secret).verify(code, valid_window=1):
+                try:
+                    os.unlink(qr_path)
+                except:
+                    qr_window.destroy()
 
                 # save master password + encrypted TOTP secret
                 salt = os.urandom(16)
                 key = derive_key(master, salt)
                 self.fernet = Fernet(key)
+                self.master_password = master
                 encrypted_totp = self.fernet.encrypt(totp_secret.encode()).decode()
 
                 conn = sqlite3.connect(DB_NAME)
                 c = conn.cursor()
                 c.execute('''CREATE TABLE IF NOT EXISTS vault(
-                            id INTEGER PRIMARY KEY,
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
                             website TEXT NOT NULL,
                             username TEXT,
                             password TEXT NOT NULL,
-                            notes TEXT
+                            notes TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                             )''')
-                c.execute(" CREATE TABLE IF NOT EXISTS master (salt BLOB, totp_secret TEXT)")
+                c.execute('''CREATE TABLE IF NOT EXISTS master (id INTEGER PRIMARY KEY, salt BLOB NOT NULL, totp_secret TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
                 c.execute("INSERT INTO master (salt, totp_secret) VALUES (?, ?)", (salt, encrypted_totp))
                 conn.commit()
                 conn.close()
@@ -148,8 +153,31 @@ class PasswordManager:
             else:
                 messagebox.showerror("Error", "Master Password must be at least 8+ characters")
                 # self.root.quit()
-        tk.Button(qr_window, text="Ive Scanned , Enter Code", command=verify_2fa, bg="#4CAF50", fg="white").pack(pady=10)
+        tk.Button(qr_window, text="Ive Scanned , Enter Code", command=verify_2fa, bg="#4CAF50", fg="white", font=("Arial", 11, "bold")).pack(pady=15)
+
+
+        def cleanup_and_quit(self, window, qr_path):
+            try:
+                os.unlink(qr_path)
+            except:
+                pass
+            window.destoy()
+            self.root.quit()
+
+
     def ask_master_password(self):
+        if self.login_attempts >= MAX_LOGIN_ATTEMPTS:
+            time_since_last = time.time() - self.last_failed_attempt
+
+            if  time_since_last < LOCKOUT_TIME:
+                remaining =  int(LOCKOUT_TIME - time_since_last)
+                messagebox.showerror("Locked Out", f"Too many failed attempts. Try again in {remaining} seconds.")
+                self.root.quit()
+                return
+            else:
+                self.login_attempts = 0
+
+
         master = simpledialog.askstring("Login", "Enter master Password:",show='*')
         if not master :
             self.root.quit()
@@ -165,18 +193,23 @@ class PasswordManager:
             messagebox.showerror("Error", "database corrupted")
             self.root.quit()
             return
+        
         salt , encrypted_totp= row
         key = derive_key(master, salt)
 
         try :
-            self.fernet = Fernet(key)
-            totp_secret = self.fernet.decrypt(encrypted_totp.encode()).decode()
-            # test decryption with dummy datat if needed 
-            # self.master_password = master 
-            return
-        except :
-            messagebox.showerror("Error", "Invalid Master Password")
-            self.ask_master_password()
+            temp_fernet = Fernet(key)
+            totp_secret = temp_fernet.decrypt(encrypted_totp.encode()).decode()
+            
+        except Exception as e:
+            self.login_attempts +=1
+            self.last_failed_attempt = time.time()
+            remaining = MAX_LOGIN_ATTEMPTS - self.login_attempts
+            messagebox.showerror("Authentication Failed", f"Invalid Credentials. {remaining} attempts remaining")
+            if self.login_attempts < MAX_LOGIN_ATTEMPTS:
+                self.ask_master_password()
+            else:
+                self.root.quit()
             return
         
         # ask for 2fa
