@@ -46,13 +46,18 @@ def validate_password_strength(password: str) -> tuple[bool, str]:
 class PasswordManager:
     def __init__(self, root):
         self.root = root
-        self.root.title("Password Manager")
-        self.root.geometry("700x500")
+        self.root.title(" SecurePassword Manager")
+        self.root.geometry("800x600")
         self.root.resizable(False,False)
 
-        self.fernet = None
+        # self.fernet = None
         self.fernet: Optional[Fernet] = None
-        self.master_password = None 
+        self.master_password: Optional[str] = None 
+        self.search_var = None
+        self.tree = None
+        self.menu = None
+        self.login_attempts = 0
+        self.last_failed_attempt = 0
 
         if not os.path.exists(DB_NAME):
             self.create_master_password()
@@ -64,12 +69,21 @@ class PasswordManager:
             self.load_passwords()
 
     def create_master_password(self):
-        master = simpledialog.askstring("Setup","Create a strong Master Password:", show='*')
-        if master and len(master) < 8:
-            # salt = os.urandom(16)  
-            # key = derive_key(master, salt)
-            # self.fernet = Fernet(key)
-            messagebox.showerror("Error", "Master password must be 8+ characters")
+        master = simpledialog.askstring("Setup","Create a strong Master Password:\n(12+ chars, uppecase, lowercase, number, symbol)", show='*')
+        if not master:
+            self.root.quit()
+            return
+
+        is_valid, message =validate_password_strength(master)
+        if  not is_valid:
+            messagebox.showerror("Weak Password", message)
+            self.root.quit()
+            return
+
+
+        confirm = simpledialog.askstring("Confirm ", "Re-enter Master Password:", show='*')
+        if master != confirm:
+            messagebox.showerror("Error", "Password does not match")
             self.root.quit()
             return
             
