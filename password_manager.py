@@ -11,10 +11,15 @@ from typing import Optional
 import pyotp
 import pyqrcode
 import tempfile
-import webbrowser
+import re
 from tkinter import PhotoImage
+import time 
+import hashlib
 
 DB_NAME = "passwords.db"
+MAX_LOGIN_ATTEMPTS =5 
+LOCKOUT_TIME = 300
+
 
 def derive_key(master_password: str, salt: bytes) -> bytes:
     kdf=PBKDF2HMAC(
@@ -25,6 +30,18 @@ def derive_key(master_password: str, salt: bytes) -> bytes:
     )
     key = base64.urlsafe_b64encode(kdf.derive(master_password.encode()))
     return key
+
+def validate_password_strength(password: str) -> tuple[bool, str]:
+    # validates password meets security requirments
+    if len(password) < 12:
+        return False , "Password must be atleast 12 characters "
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain UPPERCASE letters"
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain lowercase letters"
+    if not re.search(r'[!@#$%^&*()<>,.?/;":{}~|_-`~]', password):
+        return False, "Password must contain special characters"
+    return True, "Password is strong"
 
 class PasswordManager:
     def __init__(self, root):
@@ -99,7 +116,7 @@ class PasswordManager:
                 conn = sqlite3.connect(DB_NAME)
                 c = conn.cursor()
                 c.execute('''CREATE TABLE IF NOT EXISTS vault(
-                            id INTEGER PRIMARY KEY
+                            id INTEGER PRIMARY KEY,
                             website TEXT NOT NULL,
                             username TEXT,
                             password TEXT NOT NULL,
