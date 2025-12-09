@@ -215,27 +215,35 @@ class PasswordManager:
         # ask for 2fa
         code = simpledialog.askstring("2FA Required", "Enter 6-digit code from Authenticator app:", show='*')
         if code and pyotp.TOTP(totp_secret).verify(code):
-            self.master_password = master 
-            self.setup_gui()
-            self.load_passwords()
+            self.fernet = temp_fernet
+            self.master_password = master
+            self.login_attempts = 0 #resset on success
 
         else:
-            messagebox.showerror("Access Denied", "Invalid 2FA code")
-            self.ask_master_password()    
+            self.login_attempts += 1
+            self.last_failed_attempt = time.time()
+            remaining = MAX_LOGIN_ATTEMPTS - self.login_attempts
+            messagebox.showerror("Authentication Failed ", f"Invalid 2FA code. {remaining} attempts remaining")
 
-
-        # else:
-        #     messagebox.showerror("Error", "database corrupted")
-        #     self.root.quit()
-
+            if self.login_attempts < MAX_LOGIN_ATTEMPTS:
+                self.ask_master_password()
+            else:
+                self.root.quit()
+                
     def setup_gui(self):
+        # title
+        title_frame = tk.Frame(self.root, bg="#4CAF50", height=50)
+        title_frame.pack(fill=tk.X)
+        tk.Label(title_frame, text="Secure Password Manager", font=("Arial", 18,"bold"), bg="#4CAF50" , fg="white").pack(pady=10)
+
+
         #search bar 
         search_frame = tk.Frame(self.root)
         search_frame.pack(pady=10, fill=tk.X, padx=20)
 
-        tk.Label(search_frame, text="Search:").pack(side=tk.LEFT)
+        tk.Label(search_frame, text="Search:", font=("Arial", 10)).pack(side=tk.LEFT)
         self.search_var = tk.StringVar()
-        search_entry = tk.Entry(search_frame, textvariable= self.search_var, width=40)
+        search_entry = tk.Entry(search_frame, textvariable= self.search_var, width=50, font=("Arial", 10))
         search_entry.pack(side=tk.LEFT, padx=5)
         search_entry.bind('<KeyRelease>', lambda e: self.load_passwords())
 
@@ -243,9 +251,9 @@ class PasswordManager:
         btn_frame = tk.Frame(self.root)
         btn_frame.pack(pady=5)
 
-        tk.Button(btn_frame, text="Add New", command=self.add_entry, bg="#4CAF50" , fg="white", width=12).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Refresh", command=self.load_passwords, bg="#2196F3" , fg="white", width=12).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Exit", command=self.root.quit, bg="#f44336" , fg="white", width=12).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Add New", command=self.add_entry, bg="#4CAF50" , fg="white", width=15, font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Refresh", command=self.load_passwords, bg="#2196F3" , fg="white", width=15, font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Exit", command=self.root.quit, bg="#f44336" , fg="white", width=15, font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=5)
 
         # treeview
         columns = ("website", "username", "password", "notes")
