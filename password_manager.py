@@ -481,7 +481,10 @@ class PasswordManager:
 
     def show_context_menu(self, event):
             try:
-                self.menu.tk_popup(event.x_root, event.y_root)
+                item = self.tree.identify_row(event.y)
+                if item:
+                    self.tree.selection_set(item)
+                    self.menu.tk_popup(event.x_root, event.y_root)
             finally:
                 self.menu.grab_release()
 
@@ -494,6 +497,21 @@ class PasswordManager:
         if username:
             pyperclip.copy(username)
             self.status_bar.config(text="Username copied to clipboard")
+    
+    def secure_exit(self):
+        if messagebox.askyesno("Exit", "Are you sure you want to exit?"):
+            if self.fernet:
+                self.fernet = None
+            if self.master_password:
+                self.master_password = None
+
+            try:
+                pyperclip.copy("")
+            except:
+                pass
+            self.root.quit()
+            
+
 
 if __name__ == "__main__":
     root = tk.Tk()
