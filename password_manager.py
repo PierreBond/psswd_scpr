@@ -284,6 +284,10 @@ class PasswordManager:
         self.menu.add_command(label = "delete", command= self.delete_entry)
         self.tree.bind("<Button-3>", self.show_context_menu)
 
+        # status bar
+        self.status_bar = tk.Label(self.root, text="Ready", bd=1, relief=tk.SUNKEN, anchor=tk.W, font=("Arial", 9))
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+
     def encrypt(self, text: str)-> str:
         if self.fernet is None:
             raise ValueError("Master password not unlocked")
@@ -294,6 +298,9 @@ class PasswordManager:
             raise ValueError("Master password not unlocked")
         return self.fernet.decrypt(token.encode()).decode()
     def load_passwords(self):
+        if self.tree is None:
+            return
+        
         for items in self.tree.get_children():
             self.tree.delete(items)
 
@@ -317,17 +324,23 @@ class PasswordManager:
             username_lower = username.lower() if username else ""
             notes_lower = notes.lower() if notes else ""
 
-            if (search_item in website_lower or search_item in username_lower or search_item in notes_lowe):
+            if (search_item in website_lower or search_item in username_lower or search_item in notes_lower):
                 self.tree.insert("", tk.END, values=(website, username or "","••••••••", notes or ""), tags=(id_,))
 
                 count +=1
-        self.status_bar.config(text=f"Showing {count} entries")
+
+        if hasattr(self, 'status_bar') and self.status_bar:
+            self.status_bar.config(text=f"Showing {count} entries")
         # conn.close()
 
     def add_entry(self):
         self.show_entry_dailog()
 
     def edit_entry(self):
+
+        if self.tree is None:
+            return
+        
         selected = self.tree.selection()
         if not selected :
             messagebox.showwarning("No Selection","Please select an entry to edit") 
@@ -340,14 +353,17 @@ class PasswordManager:
         conn = sqlite3.connect(DB_NAME)
         c= conn.cursor()
         c.execute("SELECT password  FROM vault WHERE  id=?", (entry_id))
-        enc_pass = c.fetchone()[0]
+        result = c.fetchone()[0]
         conn.close()
 
-        try:
-            real_password = self.decrypt(enc_pass)
-            self.show_entry_dailog(edit_mode=True, entry_id=entry_id, current=values, password =real_password)
-        except:
-            messagebox.showerror("Error", "Failed to decrypt password")
+        if result:
+            enc_pass = result[0]
+
+            try:
+                real_password = self.decrypt(enc_pass)
+                self.show_entry_dailog(edit_mode=True, entry_id=entry_id, current=values, password =real_password)
+            except:
+                messagebox.showerror("Error", "Failed to decrypt password")
 
 
         # self.show_entry_dailog(edit_mode=True, entry_id = entry_id, current = values)
