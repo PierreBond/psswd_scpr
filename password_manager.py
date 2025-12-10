@@ -107,7 +107,7 @@ class PasswordManager:
 
         img = PhotoImage(file=qr_path)
         label = tk.Label(qr_window, image=img)
-        label.image= img #keep reference
+        setattr(label, "imge", img)
         label.pack(pady=10)
 
         tk.Label(qr_window, text="Scan this QR code with your\n Authenticator App",
@@ -392,7 +392,10 @@ class PasswordManager:
         password_entry.pack(side=tk.LEFT)
 
         def toggle_password():
-            password_entry.config(show="" if show_password.get() else="*")
+            if show_password.get():
+                password_entry.config(show="")
+            else:
+                password_entry.config(show="*")
 
         tk.Checkbutton(password_frame, text="show", variable=show_password, command=toggle_password).pack(side=tk.LEFT, padx=5)
 
@@ -523,7 +526,7 @@ class PasswordManager:
         selected = self.tree.selection()
         if not selected:
             return 
-        username = self.tree.item(selected[0])['value'][1]
+        username = self.tree.item(selected[0])['values'][1]
 
         if username:
             pyperclip.copy(username)
