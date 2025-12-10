@@ -454,9 +454,14 @@ class PasswordManager:
         tk.Button(btn_frame, text="cancel", command= dailog.destroy, bg="#f44336",fg="white", width=15, font=("Arial", 11, "bold")).pack(side=tk.LEFT,padx=5)
 
     def delete_entry(self):
+
+        if self.tree is None:
+            return
+        
         selected = self.tree.selection()
         if not selected:
             return
+        
         item = self.tree.item(selected[0])
         website = item['values'][0]
 
@@ -471,6 +476,9 @@ class PasswordManager:
             messagebox.showinfo("Deleted", "Entry deleted successfully")
 
     def copy_password(self):
+        if self.tree is None:
+            return
+        
         selected = self.tree.selection()
         if not selected:
             return
@@ -487,7 +495,9 @@ class PasswordManager:
             try:
                 password =  self.decrypt(enc_pass)
                 pyperclip.copy(password)
-                self.status_bar.config(text="Password copied to clipboard (will clear in 30s)")
+
+                if hasattr(self, 'ststus_bar') and self.status_bar:
+                    self.status_bar.config(text="Password copied to clipboard (will clear in 30s)")
 
                 self.root.after(30000, lambda: pyperclip.copy(""))
 
@@ -496,6 +506,8 @@ class PasswordManager:
                 messagebox.showerror("Error", "Failed to decrypt password")
 
     def show_context_menu(self, event):
+            if self.tree is None or self.menu is None:
+                return
             try:
                 item = self.tree.identify_row(event.y)
                 if item:
@@ -505,6 +517,9 @@ class PasswordManager:
                 self.menu.grab_release()
 
     def copy_username(self):
+        if self.tree is None:
+            return
+        
         selected = self.tree.selection()
         if not selected:
             return 
@@ -512,7 +527,8 @@ class PasswordManager:
 
         if username:
             pyperclip.copy(username)
-            self.status_bar.config(text="Username copied to clipboard")
+            if hasattr(self , 'status_bar') and self.status_bar:
+                self.status_bar.config(text="Username copied to clipboard")
     
     def secure_exit(self):
         if messagebox.askyesno("Exit", "Are you sure you want to exit?"):
