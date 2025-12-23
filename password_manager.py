@@ -102,8 +102,8 @@ class PasswordManager:
 
         # Show QR code
         qr_window = tk.Toplevel(self.root)
-        qr_window.title("Scan with Aithenticator App")
-        qr_window.geometry("300x350")
+        qr_window.title("Scan with Authenticator App")
+        qr_window.geometry("600x650")
 
         img = PhotoImage(file=qr_path)
         label = tk.Label(qr_window, image=img)
