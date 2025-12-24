@@ -269,7 +269,7 @@ class PasswordManager:
 
         self.tree.heading("website", text= "Website/Service")
         self.tree.heading("username", text= "Username/Email")
-        self.tree.heading("Password", text= "Password")
+        self.tree.heading("password", text= "password")
         self.tree.heading("notes", text= "Notes")
 
         self.tree.column("website", width=200)
@@ -383,7 +383,7 @@ class PasswordManager:
         username_entry = tk.Entry(dailog, width=50,font=("Arial", 10))
         username_entry.pack(pady=5)
 
-        tk.Label(dailog, text="Paswword:",font=("Arial", 10, "bold")).pack(pady=5)
+        tk.Label(dailog, text="Password:",font=("Arial", 10, "bold")).pack(pady=5)
         password_frame = tk.Entry(dailog, width=50,font=("Arial", 10))
         password_frame.pack(pady=5)
 
