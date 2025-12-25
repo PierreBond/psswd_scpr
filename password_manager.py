@@ -428,7 +428,7 @@ class PasswordManager:
             password_text =  password_entry.get().strip()
             notes = notes_entry.get().strip()
 
-            if not website or not password:
+            if not website or not password_text:
                 messagebox.showerror("Error", "Website and Password are required")
                 return
             
@@ -439,10 +439,10 @@ class PasswordManager:
 
             if edit_mode:
                 c.execute('''UPDATE vault SET website=?, username=?, password=?, notes=?, modified_at=CURRENT_TIMESTAMP WHERE id=?''',
-                          (website, username,password, notes, entry_id))
+                          (website, username,password_text, notes, entry_id))
             else:
                  c.execute('''INSERT INTO vault (website, username,password, notes) VALUES (?, ?, ?, ?)''',
-                          (website, username,password, notes))  
+                          (website, username,password_text, notes))  
             conn.commit()
             conn.close()
 
