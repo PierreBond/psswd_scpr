@@ -429,7 +429,7 @@ class PasswordManager:
             notes = notes_entry.get().strip()
 
             if not website or not password:
-                messagebox.showerror("Error", "Website amd Password are required")
+                messagebox.showerror("Error", "Website and Password are required")
                 return
             
             enc_password =  self.encrypt(password_text)
