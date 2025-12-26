@@ -439,10 +439,10 @@ class PasswordManager:
 
             if edit_mode:
                 c.execute('''UPDATE vault SET website=?, username=?, password=?, notes=?, modified_at=CURRENT_TIMESTAMP WHERE id=?''',
-                          (website, username,password_text, notes, entry_id))
+                          (website, username,enc_password, notes, entry_id))
             else:
                  c.execute('''INSERT INTO vault (website, username,password, notes) VALUES (?, ?, ?, ?)''',
-                          (website, username,password_text, notes))  
+                          (website, username, enc_password, notes))  
             conn.commit()
             conn.close()
 
