@@ -15,21 +15,29 @@ import re
 from tkinter import PhotoImage
 import time 
 import hashlib
+from argon2 import PasswordHasher 
 
 DB_NAME = "passwords.db"
 MAX_LOGIN_ATTEMPTS =5 
 LOCKOUT_TIME = 300
 
-
+#used argon cos why not 
 def derive_key(master_password: str, salt: bytes) -> bytes:
-    kdf=PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=480000,
-    )
-    key = base64.urlsafe_b64encode(kdf.derive(master_password.encode()))
+    ph = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4, hash_len=32)
+    hash_bytes = ph.hash(master_password.encode(), salt = salt)
+
+    key = base64.urlsafe_b64encode(hash_bytes.encode().split(b'$')[-1][:32])
     return key
+
+# def derive_key(master_password: str, salt: bytes) -> bytes:
+#     kdf=PBKDF2HMAC(
+#         algorithm=hashes.SHA256(),
+#         length=32,
+#         salt=salt,
+#         iterations=480000,
+#     )
+#     key = base64.urlsafe_b64encode(kdf.derive(master_password.encode()))
+#     return key
 
 def validate_password_strength(password: str) -> tuple[bool, str]:
     # validates password meets security requirments
@@ -426,7 +434,7 @@ class PasswordManager:
             website = website_entry.get().strip()
             username =  username_entry.get().strip()
             password_text =  password_entry.get().strip()
-            notes = notes_entry.get().strip()
+            notes = notes_entry.get().strip() or None
 
             if not website or not password_text:
                 messagebox.showerror("Error", "Website and Password are required")
