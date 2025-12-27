@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 import sqlite3
 import base64
+from base64 import urlsafe_b64encode, urlsafe_b64decode
 import os 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes 
@@ -15,19 +16,37 @@ import re
 from tkinter import PhotoImage
 import time 
 import hashlib
-from argon2 import PasswordHasher 
+# from argon2 import PasswordHasher 
+from argon2.low_level import hash_secret_raw, Type
 
 DB_NAME = "passwords.db"
 MAX_LOGIN_ATTEMPTS =5 
 LOCKOUT_TIME = 300
 
 #used argon cos why not 
-def derive_key(master_password: str, salt: bytes) -> bytes:
-    ph = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4, hash_len=32)
-    hash_bytes = ph.hash(master_password.encode(), salt = salt)
+def derive_key( master_password: str, salt: bytes) -> bytes:
+    if salt is None :
+        salt = os.urandom(16)
 
-    key = base64.urlsafe_b64encode(hash_bytes.encode().split(b'$')[-1][:32])
+    raw_key = hash_secret_raw(
+        secret= master_password.encode(),
+        salt =salt,
+        time_cost = 3,
+        memory_cost= 65536,
+        parallelism = 4, 
+        hash_len =32,
+        type = Type.ID
+
+    )
+    key = urlsafe_b64encode(raw_key)
     return key
+
+# def derive_key(master_password: str, salt: bytes) -> bytes:
+#     ph = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4, hash_len=32)
+#     hash_bytes = ph.hash(master_password.encode(), salt = salt)
+
+#     key = base64.urlsafe_b64encode(hash_bytes.encode().split(b'$')[-1][:32])
+#     return key
 
 # def derive_key(master_password: str, salt: bytes) -> bytes:
 #     kdf=PBKDF2HMAC(
@@ -493,7 +512,11 @@ class PasswordManager:
         selected = self.tree.selection()
         if not selected:
             return
-        entry_id = self.tree.item(selected[0])['tags'][0]
+        raw_id = self.tree.item(selected[0])['tags'][0]
+        if not raw_id.isdigit():
+            messagebox.showerror("Error", "Invalid entry id")
+            return
+        entry_id = int(raw_id)
 
         conn =sqlite3.connect(DB_NAME)
         c = conn.cursor()
@@ -507,7 +530,7 @@ class PasswordManager:
                 password =  self.decrypt(enc_pass)
                 pyperclip.copy(password)
 
-                if hasattr(self, 'ststus_bar') and self.status_bar:
+                if hasattr(self, 'status_bar') and self.status_bar:
                     self.status_bar.config(text="Password copied to clipboard (will clear in 30s)")
 
                 self.root.after(30000, lambda: pyperclip.copy(""))
