@@ -306,9 +306,9 @@ class PasswordManager:
 
         # right click menu 
         self.menu = tk.Menu(self.root, tearoff=0)
-        self.menu.add_command(label = "copy password", command= self.copy_password)
-        self.menu.add_command(label = "edit", command= self.edit_entry)
-        self.menu.add_command(label = "delete", command= self.delete_entry)
+        self.menu.add_command(label = "Copy password", command= self.copy_password)
+        self.menu.add_command(label = "Edit", command= self.edit_entry)
+        self.menu.add_command(label = "Delete", command= self.delete_entry)
         self.tree.bind("<Button-3>", self.show_context_menu)
 
         # status bar
@@ -323,7 +323,15 @@ class PasswordManager:
     def decrypt(self, token: str)-> str:
         if self.fernet is None:
             raise ValueError("Master password not unlocked")
-        return self.fernet.decrypt(token.encode()).decode()
+        
+        try:
+            token_bytes = token.encode()
+            decrypted_bytes = self.fernet.decrypt(token_bytes)
+            return decrypted_bytes.decode()
+        except Exception as e :
+            print(f"DEBUG: Cryptography Error: {type(e).__name__} - {e}")
+            raise e 
+
     def load_passwords(self):
         if self.tree is None:
             return
@@ -364,10 +372,8 @@ class PasswordManager:
         self.show_entry_dailog()
 
     def edit_entry(self):
-
         if self.tree is None:
             return
-        
         selected = self.tree.selection()
         if not selected :
             messagebox.showwarning("No Selection","Please select an entry to edit") 
@@ -379,8 +385,8 @@ class PasswordManager:
         #fetch real password for editing
         conn = sqlite3.connect(DB_NAME)
         c= conn.cursor()
-        c.execute("SELECT password  FROM vault WHERE  id=?", (entry_id))
-        result = c.fetchone()[0]
+        c.execute("SELECT password  FROM vault WHERE  id=?", (entry_id,))
+        result = c.fetchone()
         conn.close()
 
         if result:
@@ -512,32 +518,41 @@ class PasswordManager:
         selected = self.tree.selection()
         if not selected:
             return
+        
         raw_id = self.tree.item(selected[0])['tags'][0]
-        if not raw_id.isdigit():
+        str_id = str(raw_id)
+
+        if not str_id.isdigit():
             messagebox.showerror("Error", "Invalid entry id")
             return
-        entry_id = int(raw_id)
+        
+        entry_id = int(str_id)
 
-        conn =sqlite3.connect(DB_NAME)
-        c = conn.cursor()
-        c.execute("SELECT password FROM vault WHERE id=?", (entry_id,))
-        result = c.fetchone()[0]
-        conn.close()
+        try :
+            conn =sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            c.execute("SELECT password FROM vault WHERE id=?", (entry_id,))
+            result = c.fetchone()
+            conn.close()
 
-        if result:
+            if  not result:
+                return
             enc_pass = result[0]
-            try:
-                password =  self.decrypt(enc_pass)
-                pyperclip.copy(password)
+        
+            password =  self.decrypt(enc_pass)
+            pyperclip.copy(password)
 
-                if hasattr(self, 'status_bar') and self.status_bar:
-                    self.status_bar.config(text="Password copied to clipboard (will clear in 30s)")
+            password = "x"*len(password)
+            del password
 
-                self.root.after(30000, lambda: pyperclip.copy(""))
+            if hasattr(self, 'status_bar') and self.status_bar:
+                self.status_bar.config(text="Password copied to clipboard (will clear in 30s)")
+
+            self.root.after(30000, lambda: pyperclip.copy(""))
 
 
-            except:
-                messagebox.showerror("Error", "Failed to decrypt password")
+        except:
+            messagebox.showerror("Error", "Failed to decrypt password")
 
     def show_context_menu(self, event):
             if self.tree is None or self.menu is None:
