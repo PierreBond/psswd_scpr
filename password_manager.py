@@ -282,49 +282,52 @@ class PasswordManager:
 
         tk.Label(search_container, text="Search:", font=("Satoshi", 10), bg= "#f8f9fa").pack(side=tk.LEFT)
         self.search_var = tk.StringVar()
-        search_entry = tk.Entry(search_container, textvariable= self.search_var, width=50, font=("Arial", 10))
-        search_entry.pack(side=tk.LEFT, padx=5)
+        search_entry = tk.Entry(search_container, textvariable= self.search_var, width=50, font=("Satoshi", 10), bd=0, highlightthickness=1,highlightbackground="#dcdde1")
+        search_entry.pack(side=tk.LEFT, padx=5, ipady=3)
         search_entry.bind('<KeyRelease>', lambda e: self.load_passwords())
 
         # buttons
-        btn_frame = tk.Frame(self.root)
-        btn_frame.pack(pady=5)
+        btn_frame = tk.Frame(self.root, pady=10)
+        btn_frame.pack(fill=tk.X)
 
-        tk.Button(btn_frame, text="Add New", command=self.add_entry, bg="#4CAF50" , fg="white", width=15, font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Refresh", command=self.load_passwords, bg="#2196F3" , fg="white", width=15, font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Exit", command=self.root.quit, bg="#f44336" , fg="white", width=15, font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Add Entry", command=self.add_entry, bg="#27ae60" , fg="white", width=15, relief=tk.FLAT, font=("Satoshi", 10, "bold") , cursor="hand2").pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Refresh", command=self.load_passwords, bg="#3498db" , fg="white", width=15,relief=tk.FLAT, font=("Satoshi", 10, "bold"), cursor="hand2").pack(side=tk.LEFT, padx=5)
+        # tk.Button(btn_frame, text="Exit", command=self.root.quit, bg="#f44336" , fg="white", width=15, font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=5)
 
         # treeview
-        tree_frame = tk.Frame(self.root)
-        tree_frame.pack(padx=20 , pady=10 , fill=tk.BOTH, expand=True)
+        tree_frame = tk.Frame(self.root, bg = "white")
+        tree_frame.pack(  fill=tk.BOTH, expand=True, padx=20 , pady=10)
 
         scrollbar  =ttk.Scrollbar(tree_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
 
         columns = ("website", "username", "password", "notes")
-        self.tree = ttk.Treeview(self.root, columns=columns, show="headings", yscrollcommand=scrollbar.set)
+        self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", yscrollcommand=scrollbar.set, style="Custom.Treeview")
         self.tree.pack(padx=2, pady=10, fill=tk.BOTH, expand=True)
+        scrollbar.config(command = self.tree.yview)
 
         self.tree.heading("website", text= "Website/Service")
         self.tree.heading("username", text= "Username/Email")
         self.tree.heading("password", text= "password")
         self.tree.heading("notes", text= "Notes")
 
-        self.tree.column("website", width=200)
+        self.tree.column("website", width=150)
         self.tree.column("username", width=200)
-        self.tree.column("password", width=120, anchor=tk.CENTER)
-        self.tree.column("notes", width=180)
+        self.tree.column("password", width=100, anchor=tk.CENTER)
+        self.tree.column("notes", width=200)
 
         # right click menu 
-        self.menu = tk.Menu(self.root, tearoff=0)
+        self.menu = tk.Menu(self.root, tearoff=0, font=("Satoshi", 10))
         self.menu.add_command(label = "Copy password", command= self.copy_password)
+        self.menu.add_command(label = "Copy username", command= self.copy_username)
+        self.menu.add_separator()
         self.menu.add_command(label = "Edit", command= self.edit_entry)
         self.menu.add_command(label = "Delete", command= self.delete_entry)
         self.tree.bind("<Button-3>", self.show_context_menu)
 
         # status bar
-        self.status_bar = tk.Label(self.root, text="Ready", bd=1, relief=tk.SUNKEN, anchor=tk.W, font=("Arial", 9))
+        self.status_bar = tk.Label(self.root, text="Ready", bd=0, bg="#ecf0f1",  anchor=tk.W, font=("Satoshi", 9), padx= 10 , pady=5)
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
     def encrypt(self, text: str)-> str:
