@@ -256,7 +256,13 @@ class PasswordManager:
                 self.ask_master_password()
             else:
                 self.root.quit()
-                
+
+    def style_application(self):
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        style.configure("Custom.Treeview")
+
     def setup_gui(self):
         # title
         title_frame = tk.Frame(self.root, bg="#4CAF50", height=50)
