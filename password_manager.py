@@ -270,16 +270,19 @@ class PasswordManager:
         title_frame = tk.Frame(self.root, bg="#2c3e50", height=70)
         title_frame.pack(fill=tk.X)
         title_frame.pack_propagate(False)
-        tk.Label(title_frame, text="Secure Password Manager", font=("Arial", 18,"bold"), bg="#4CAF50" , fg="white").pack(pady=10)
+        tk.Label(title_frame, text="Secure Password Manager", font=("Satoshi", 18,"bold"), bg="#2c3e50" , fg="#ecf0f1").pack(pady=10)
 
 
         #search bar 
-        search_frame = tk.Frame(self.root)
-        search_frame.pack(pady=10, fill=tk.X, padx=20)
+        search_frame = tk.Frame(self.root, bg= "#f8f9fa", pady=15)
+        search_frame.pack(fill=tk.X, padx=20)
 
-        tk.Label(search_frame, text="Search:", font=("Arial", 10)).pack(side=tk.LEFT)
+        search_container = tk.Frame(search_frame, bg="#f8f9fa")
+        search_container.pack(expand=True)
+
+        tk.Label(search_container, text="Search:", font=("Satoshi", 10), bg= "#f8f9fa").pack(side=tk.LEFT)
         self.search_var = tk.StringVar()
-        search_entry = tk.Entry(search_frame, textvariable= self.search_var, width=50, font=("Arial", 10))
+        search_entry = tk.Entry(search_container, textvariable= self.search_var, width=50, font=("Arial", 10))
         search_entry.pack(side=tk.LEFT, padx=5)
         search_entry.bind('<KeyRelease>', lambda e: self.load_passwords())
 
