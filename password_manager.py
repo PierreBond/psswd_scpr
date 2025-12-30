@@ -261,12 +261,15 @@ class PasswordManager:
         style = ttk.Style()
         style.theme_use("clam")
 
-        style.configure("Custom.Treeview")
+        style.configure("Custom.Treeview", background= "#ffffff", foreground="2d3436", rowheight= 35, font=("Satoshi", 10))
+        style.map("Custom.Treeview", background=[('selected', '#3498bd')], foreground=[('selected', 'white')])
+        style.configure("Custom.Treeview.Heading", background="dfe6e9", font=("Satoshi", 10, "bold"))
 
     def setup_gui(self):
         # title
-        title_frame = tk.Frame(self.root, bg="#4CAF50", height=50)
+        title_frame = tk.Frame(self.root, bg="#2c3e50", height=70)
         title_frame.pack(fill=tk.X)
+        title_frame.pack_propagate(False)
         tk.Label(title_frame, text="Secure Password Manager", font=("Arial", 18,"bold"), bg="#4CAF50" , fg="white").pack(pady=10)
 
 
