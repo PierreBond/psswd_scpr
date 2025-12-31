@@ -16,6 +16,7 @@ import re
 from tkinter import PhotoImage
 import time 
 import hashlib
+
 # from argon2 import PasswordHasher 
 from argon2.low_level import hash_secret_raw, Type
 
@@ -188,7 +189,7 @@ class PasswordManager:
                 os.unlink(qr_path)
             except:
                 pass
-            window.destoy()
+            window.destroy()
             self.root.quit()
 
 
@@ -261,28 +262,30 @@ class PasswordManager:
         style = ttk.Style()
         style.theme_use("clam")
 
-        style.configure("Custom.Treeview", background= "#ffffff", foreground="2d3436", rowheight= 35, font=("Satoshi", 10))
+        style.configure("Custom.Treeview", background= "#ffffff", foreground="#2d3436", fieldbackground="white", rowheight= 30, font=("Satoshi", 10), borderwidth =0)
         style.map("Custom.Treeview", background=[('selected', '#3498bd')], foreground=[('selected', 'white')])
-        style.configure("Custom.Treeview.Heading", background="dfe6e9", font=("Satoshi", 10, "bold"))
+        style.configure("Custom.Treeview.Heading", background="f1f2f6", foreground = "#2d3436", font=("Satoshi", 10, "bold"), relief = "flat")
+        style.map("Custom.Treeview", background=[('active', '#dfe4ea')])
 
     def setup_gui(self):
+        self.style_application()
+        self.root.configure(bg= "white")
+
+
         # title
         title_frame = tk.Frame(self.root, bg="#2c3e50", height=70)
         title_frame.pack(fill=tk.X)
         title_frame.pack_propagate(False)
-        tk.Label(title_frame, text="Secure Password Manager", font=("Satoshi", 18,"bold"), bg="#2c3e50" , fg="#ecf0f1").pack(pady=10)
+        tk.Label(title_frame, text="Secure Password Manager", font=("Satoshi", 18,"bold"), bg="#2c3e50" , fg="#ecf0f1").pack(side=tk.LEFT, padx=20,pady=15)
 
 
         #search bar 
-        search_frame = tk.Frame(self.root, bg= "#f8f9fa", pady=15)
-        search_frame.pack(fill=tk.X, padx=20)
+        search_frame = tk.Frame(self.root, bg= "#f8f9fa", pady=15, padx= 20)
+        search_frame.pack(fill=tk.X)
 
-        search_container = tk.Frame(search_frame, bg="#f8f9fa")
-        search_container.pack(expand=True)
-
-        tk.Label(search_container, text="Search:", font=("Satoshi", 10), bg= "#f8f9fa").pack(side=tk.LEFT)
+        tk.Label(search_frame, text="Search:", font=("Satoshi", 10), bg= "#f8f9fa").pack(side=tk.LEFT)
         self.search_var = tk.StringVar()
-        search_entry = tk.Entry(search_container, textvariable= self.search_var, width=50, font=("Satoshi", 10), bd=0, highlightthickness=1,highlightbackground="#dcdde1")
+        search_entry = tk.Entry(search_frame, textvariable= self.search_var, width=50, font=("Satoshi", 10), bd=0, highlightthickness=1,highlightbackground="#dcdde1")
         search_entry.pack(side=tk.LEFT, padx=5, ipady=3)
         search_entry.bind('<KeyRelease>', lambda e: self.load_passwords())
 
@@ -290,13 +293,16 @@ class PasswordManager:
         btn_frame = tk.Frame(self.root, pady=10)
         btn_frame.pack(fill=tk.X)
 
-        tk.Button(btn_frame, text="Add Entry", command=self.add_entry, bg="#27ae60" , fg="white", width=15, relief=tk.FLAT, font=("Satoshi", 10, "bold") , cursor="hand2").pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Refresh", command=self.load_passwords, bg="#3498db" , fg="white", width=15,relief=tk.FLAT, font=("Satoshi", 10, "bold"), cursor="hand2").pack(side=tk.LEFT, padx=5)
-        # tk.Button(btn_frame, text="Exit", command=self.root.quit, bg="#f44336" , fg="white", width=15, font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=5)
+        button_container = tk.Frame(btn_frame)
+        button_container.pack(expand=True)
+
+        tk.Button(button_container, text="Add Entry", command=self.add_entry, bg="#27ae60" , fg="white", width=15, relief="flat", padx=10, pady=5, font=("Satoshi", 10, "bold") , cursor="hand2").pack(side=tk.LEFT, padx=10)
+        tk.Button(button_container, text="Refresh", command=self.load_passwords, bg="#3498db" , fg="white", width=15,relief= "flat",padx=10,pady=5, font=("Satoshi", 10, "bold"), cursor="hand2").pack(side=tk.LEFT, padx=10)
+        tk.Button(button_container, text="Exit", command=self.root.quit, bg="#f44336" , fg="white", width=15,relief="flat",padx=10,pady=5, font=("Satoshi", 10, "bold"), cursor="hand2").pack(side=tk.LEFT, padx=10)
 
         # treeview
         tree_frame = tk.Frame(self.root, bg = "white")
-        tree_frame.pack(  fill=tk.BOTH, expand=True, padx=20 , pady=10)
+        tree_frame.pack(  fill=tk.BOTH, expand=True, padx=20 , pady=(0,20))
 
         scrollbar  =ttk.Scrollbar(tree_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -304,9 +310,11 @@ class PasswordManager:
 
         columns = ("website", "username", "password", "notes")
         self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", yscrollcommand=scrollbar.set, style="Custom.Treeview")
+        
         self.tree.pack(padx=2, pady=10, fill=tk.BOTH, expand=True)
         scrollbar.config(command = self.tree.yview)
 
+        
         self.tree.heading("website", text= "Website/Service")
         self.tree.heading("username", text= "Username/Email")
         self.tree.heading("password", text= "password")
@@ -318,7 +326,7 @@ class PasswordManager:
         self.tree.column("notes", width=200)
 
         # right click menu 
-        self.menu = tk.Menu(self.root, tearoff=0, font=("Satoshi", 10))
+        self.menu = tk.Menu(self.root, tearoff=0,bg = "white", font=("Satoshi", 10))
         self.menu.add_command(label = "Copy password", command= self.copy_password)
         self.menu.add_command(label = "Copy username", command= self.copy_username)
         self.menu.add_separator()
@@ -327,7 +335,7 @@ class PasswordManager:
         self.tree.bind("<Button-3>", self.show_context_menu)
 
         # status bar
-        self.status_bar = tk.Label(self.root, text="Ready", bd=0, bg="#ecf0f1",  anchor=tk.W, font=("Satoshi", 9), padx= 10 , pady=5)
+        self.status_bar = tk.Label(self.root, text="Ready", bd=0, bg="#ecf0f1", relief= tk.FLAT, anchor=tk.W, font=("Satoshi", 9), padx= 10 , pady=5)
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
     def encrypt(self, text: str)-> str:
@@ -365,16 +373,16 @@ class PasswordManager:
         count = 0
         for row in rows:
             id_, website, username, enc_pass, notes = row 
-            try:
-                password = self.decrypt(enc_pass)
-            except:
-                password = "Decryption Error"
+            # try:
+            #     password = self.decrypt(enc_pass)
+            # except:
+            #     password = "Decryption Error"
 
             website_lower =website.lower()  if website else ""
             username_lower = username.lower() if username else ""
             notes_lower = notes.lower() if notes else ""
 
-            if (search_item in website_lower or search_item in username_lower or search_item in notes_lower):
+            if not search_item or (search_item in website_lower or search_item in username_lower or search_item in notes_lower):
                 self.tree.insert("", tk.END, values=(website, username or "","••••••••", notes or ""), tags=(id_,))
 
                 count +=1
@@ -610,6 +618,15 @@ class PasswordManager:
 
 
 if __name__ == "__main__":
+    import ctypes 
+
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except  Exception:
+        ctypes.windll.user32.SetProcessDPIAware()
+
+
     root = tk.Tk()
     app = PasswordManager(root)
     root.mainloop()
+
