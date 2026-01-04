@@ -75,8 +75,9 @@ class PasswordManager:
     def __init__(self, root):
         self.root = root
         self.root.title(" SecurePassword Manager")
-        self.root.geometry("800x600")
-        self.root.resizable(False,False)
+        self.root.geometry("1200x1000")
+        self.root.resizable(True, True)
+        self.is_loading = False
 
         # self.fernet = None
         self.fernet: Optional[Fernet] = None
@@ -265,64 +266,122 @@ class PasswordManager:
         style.configure("Custom.Treeview", background= "#ffffff", foreground="#2d3436", fieldbackground="white", rowheight= 30, font=("Satoshi", 10), borderwidth =0)
         style.map("Custom.Treeview", background=[('selected', '#3498bd')], foreground=[('selected', 'white')])
         style.configure("Custom.Treeview.Heading", background="f1f2f6", foreground = "#2d3436", font=("Satoshi", 10, "bold"), relief = "flat")
-        style.map("Custom.Treeview", background=[('active', '#dfe4ea')])
+        style.map("Custom.Treeview.Heading", background=[('active', '#dfe4ea')])
 
     def setup_gui(self):
+        """Main entry point for building the modern UI layout."""
         self.style_application()
-        self.root.configure(bg= "white")
+        self.root.configure(bg="#f5f6fa") 
 
+        self.main_container = tk.Frame(self.root, bg="#f5f6fa")
+        self.main_container.pack(fill=tk.BOTH, expand=True)
 
-        # title
-        title_frame = tk.Frame(self.root, bg="#2c3e50", height=70)
-        title_frame.pack(fill=tk.X)
-        title_frame.pack_propagate(False)
-        tk.Label(title_frame, text="Secure Password Manager", font=("Satoshi", 18,"bold"), bg="#2c3e50" , fg="#ecf0f1").pack(side=tk.LEFT, padx=20,pady=15)
+        self.sidebar = tk.Frame(self.main_container, bg="#2c3e50", width=220)
+        self.sidebar.pack(side=tk.LEFT, fill=tk.Y)
+        self.sidebar.pack_propagate(False) 
+        
+        self.setup_sidebar_content()
 
+        self.content_area = tk.Frame(self.main_container, bg="#f5f6fa")
+        self.content_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        #search bar 
-        search_frame = tk.Frame(self.root, bg= "#f8f9fa", pady=15, padx= 20)
-        search_frame.pack(fill=tk.X)
+        self.setup_dashboard_header()
+        self.setup_main_table()
+        
+        
+        self.load_passwords()
 
-        tk.Label(search_frame, text="Search:", font=("Satoshi", 10), bg= "#f8f9fa").pack(side=tk.LEFT)
+        self.status_bar = tk.Label(self.root, text="Ready", bd=0, 
+                           bg="#ecf0f1", fg="#7f8c8d", anchor=tk.W, 
+                           font=("Satoshi", 9), padx=20, pady=5)
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+
+    def setup_sidebar_content(self):
+        tk.Label(self.sidebar, text="AVA", font=("Satoshi", 24, "bold"), 
+                 bg="#2c3e50", fg="#3498db").pack(pady=(40, 10))
+        
+        tk.Label(self.sidebar, text="Secure Vault", font=("Satoshi", 12, "bold"), 
+                 bg="#2c3e50", fg="#ecf0f1").pack(pady=(0, 40))
+
+        menu_items = [
+            ("Dashboard", self.load_main_dashboard),
+          
+            ("Security Audit", self.run_security_audit),
+            ("Settings", self.show_settings)  
+        ]
+
+        for text, cmd in menu_items:
+            btn = tk.Button(self.sidebar, text=text, font=("Satoshi", 11),
+                            bg="#2c3e50", fg="#bdc3c7", 
+                            bd=0, highlightthickness=0,
+                            activebackground="#34495e", activeforeground="white",
+                            cursor="hand2", anchor="w", padx=25, pady=12,
+                            command=cmd)
+            btn.pack(fill=tk.X)
+
+        tk.Label(self.sidebar, text="v1.0.0 • Encrypted", font=("Satoshi", 8),
+                 bg="#2c3e50", fg="#7f8c8d").pack(side=tk.BOTTOM, pady=20)
+        
+
+    def load_main_dashboard(self):
+        """Clears the screen and reloads the main password list view."""
+        self.clear_content_area()
+        self.setup_dashboard_header()
+        self.setup_main_table()
+        self.root.after(10, self.load_passwords)
+    def setup_dashboard_header(self):
+        """Builds the top area of the main content (Title + Search + Add)."""
+        
+        top_bar = tk.Frame(self.content_area, bg="#f5f6fa", height=80)
+        top_bar.pack(fill=tk.X, padx=30, pady=(30, 20))
+
+        
+        tk.Label(top_bar, text="All Passwords", font=("Satoshi", 24, "bold"), 
+                 bg="#f5f6fa", fg="#2d3436").pack(side=tk.LEFT)
+
+        tk.Button(top_bar, text="New Entry", command=self.add_entry, 
+                  bg="#27ae60", fg="white", font=("Satoshi", 10, "bold"), 
+                  relief="flat", padx=20, pady=10, cursor="hand2").pack(side=tk.RIGHT)
+
+        search_container = tk.Frame(self.content_area, bg="white", padx=10, pady=5)
+        search_container.pack(fill=tk.X, padx=30, pady=(0, 20))
+        
+        tk.Label(search_container, text="search", font=("Satoshi", 12), bg="white", fg="#b2bec3").pack(side=tk.LEFT, padx=10)
+
         self.search_var = tk.StringVar()
-        search_entry = tk.Entry(search_frame, textvariable= self.search_var, width=50, font=("Satoshi", 10), bd=0, highlightthickness=1,highlightbackground="#dcdde1")
-        search_entry.pack(side=tk.LEFT, padx=5, ipady=3)
-        search_entry.bind('<KeyRelease>', lambda e: self.load_passwords())
+        self.search_entry = tk.Entry(search_container, textvariable=self.search_var, 
+                                     font=("Satoshi", 12), bg="white", bd=0)
+        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=8)
+        self.search_entry.bind('<KeyRelease>', lambda e: self.load_passwords())
 
-        # buttons
-        btn_frame = tk.Frame(self.root, pady=10)
-        btn_frame.pack(fill=tk.X)
+        tk.Button(search_container, text="✕", command=self.clear_search, 
+                  bg="white", fg="#b2bec3", font=("Satoshi", 10, "bold"), 
+                  bd=0, cursor="hand2").pack(side=tk.RIGHT, padx=10)
 
-        button_container = tk.Frame(btn_frame)
-        button_container.pack(expand=True)
+    def setup_main_table(self):
+        """Builds the Treeview table inside the content area."""
+        # Container for the table to give it a white card-like background
+        table_card = tk.Frame(self.content_area, bg="white")
+        table_card.pack(fill=tk.BOTH, expand=True, padx=30, pady=(0, 30))
 
-        tk.Button(button_container, text="Add Entry", command=self.add_entry, bg="#27ae60" , fg="white", width=15, relief="flat", padx=10, pady=5, font=("Satoshi", 10, "bold") , cursor="hand2").pack(side=tk.LEFT, padx=10)
-        tk.Button(button_container, text="Refresh", command=self.load_passwords, bg="#3498db" , fg="white", width=15,relief= "flat",padx=10,pady=5, font=("Satoshi", 10, "bold"), cursor="hand2").pack(side=tk.LEFT, padx=10)
-        tk.Button(button_container, text="Exit", command=self.root.quit, bg="#f44336" , fg="white", width=15,relief="flat",padx=10,pady=5, font=("Satoshi", 10, "bold"), cursor="hand2").pack(side=tk.LEFT, padx=10)
-
-        # treeview
-        tree_frame = tk.Frame(self.root, bg = "white")
-        tree_frame.pack(  fill=tk.BOTH, expand=True, padx=20 , pady=(0,20))
-
-        scrollbar  =ttk.Scrollbar(tree_frame)
+        scrollbar = ttk.Scrollbar(table_card)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-
         columns = ("website", "username", "password", "notes")
-        self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", yscrollcommand=scrollbar.set, style="Custom.Treeview")
-        
-        self.tree.pack(padx=2, pady=10, fill=tk.BOTH, expand=True)
-        scrollbar.config(command = self.tree.yview)
+        self.tree = ttk.Treeview(table_card, columns=columns, show="headings", 
+                                 yscrollcommand=scrollbar.set, style="Custom.Treeview")
+        self.tree.pack(fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.tree.yview)
 
-        
-        self.tree.heading("website", text= "Website/Service")
-        self.tree.heading("username", text= "Username/Email")
-        self.tree.heading("password", text= "password")
-        self.tree.heading("notes", text= "Notes")
+        # Column Configuration
+        self.tree.heading("website", text="WEBSITE")
+        self.tree.heading("username", text="USERNAME")
+        self.tree.heading("password", text="PASSWORD")
+        self.tree.heading("notes", text="NOTES")
 
-        self.tree.column("website", width=150)
-        self.tree.column("username", width=200)
-        self.tree.column("password", width=100, anchor=tk.CENTER)
+        self.tree.column("website", width=180)
+        self.tree.column("username", width=220)
+        self.tree.column("password", width=120, anchor="center")
         self.tree.column("notes", width=200)
 
         # right click menu 
@@ -334,9 +393,91 @@ class PasswordManager:
         self.menu.add_command(label = "Delete", command= self.delete_entry)
         self.tree.bind("<Button-3>", self.show_context_menu)
 
-        # status bar
-        self.status_bar = tk.Label(self.root, text="Ready", bd=0, bg="#ecf0f1", relief= tk.FLAT, anchor=tk.W, font=("Satoshi", 9), padx= 10 , pady=5)
-        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+
+
+    def run_security_audit(self):
+        """Scans the database for reused passwords and weak entries."""
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+        c.execute("SELECT website, password FROM vault")
+        rows = c.fetchall()
+        conn.close()
+
+        if not rows:
+            messagebox.showinfo("Security Audit", "Vault is empty. Nothing to audit!")
+            return
+
+        # Dictionary to track which encrypted passwords are used where
+        password_map = {}
+        duplicates = []
+
+        for website, enc_pass in rows:
+            if enc_pass in password_map:
+                duplicates.append(f"• {website} (same as {password_map[enc_pass]})")
+            else:
+                password_map[enc_pass] = website
+
+        if duplicates:
+            report = "⚠️ Reused Passwords Found:\n\n" + "\n".join(duplicates)
+            report += "\n\nIt is recommended to use unique passwords for every site."
+            messagebox.showwarning("Security Audit Result", report)
+        else:
+            messagebox.showinfo("Security Audit Result", "✅ No reused passwords found! Your vault looks secure.")
+    def clear_search(self):
+        """Resets the search box and restores the full list."""
+        # Check if search_var is not None before calling .set()
+        if self.search_var is not None:
+            self.search_var.set("")
+            
+        self.load_passwords()
+        
+        # Check if search_entry is not None before calling .focus()
+        if self.search_entry is not None:
+            self.search_entry.focus()
+
+
+    def clear_content_area(self):
+        if  hasattr(self, 'tree') and self.tree:
+            self.tree.unbind("<Button-3>")
+       
+        for widget in self.content_area.winfo_children():
+            widget.destroy()    
+
+        self.tree = None    
+
+    def show_settings(self):
+        self.clear_content_area()
+        
+        container = tk.Frame(self.content_area, bg="white", padx=40, pady=40)
+        container.pack(fill=tk.BOTH, expand=True, padx=30, pady=30)
+
+        tk.Label(container, text="Settings", font=("Satoshi", 20, "bold"), 
+                bg="white", fg="#2d3436").pack(anchor="w", pady=(0, 20))
+
+        tk.Label(container, text="SECURITY", font=("Satoshi", 9, "bold"), 
+                bg="white", fg="#b2bec3").pack(anchor="w", pady=(10, 5))
+
+        clip_frame = tk.Frame(container, bg="white")
+        clip_frame.pack(fill=tk.X, pady=10)
+        
+        tk.Label(clip_frame, text="Clear clipboard after (seconds):", 
+                font=("Satoshi", 11), bg="white").pack(side=tk.LEFT)
+        
+        self.clip_delay = tk.Spinbox(clip_frame, from_=5, to=300, width=5)
+        self.clip_delay.pack(side=tk.RIGHT)
+
+        tk.Label(container, text="DATABASE", font=("Satoshi", 9, "bold"), 
+                bg="white", fg="#b2bec3").pack(anchor="w", pady=(20, 5))
+
+        tk.Button(container, text="Export Vault (JSON)", bg="#f1f2f6", relief="flat",
+                font=("Satoshi", 10), padx=10, pady=5).pack(anchor="w", pady=5)
+        
+        tk.Button(container, text="Change Master Password", bg="#f1f2f6", relief="flat",
+                font=("Satoshi", 10), padx=10, pady=5).pack(anchor="w", pady=5)
+
+        tk.Button(container, text="Wipe All Data", bg="#feeef0", fg="#e74c3c", 
+                relief="flat", font=("Satoshi", 10, "bold"), 
+                padx=10, pady=5).pack(side=tk.BOTTOM, anchor="w")
 
     def encrypt(self, text: str)-> str:
         if self.fernet is None:
@@ -355,41 +496,52 @@ class PasswordManager:
             print(f"DEBUG: Cryptography Error: {type(e).__name__} - {e}")
             raise e 
 
-    def load_passwords(self):
-        if self.tree is None:
-            return
+    def load_passwords(self, event=None):
+        print("Debug: load_passwords called")
+
+        if getattr(self, 'is_loading', False):
+            print("Debug: Glocked by lock")
+            return 
         
-        for items in self.tree.get_children():
-            self.tree.delete(items)
+        if not hasattr(self, 'tree' ) or self.tree is None:
+            return
 
-        search_item = self.search_var.get().lower() if self.search_var else ""
+        self.is_loading = True 
+        try:
+            for items in self.tree.get_children():
+                self.tree.delete(items)
 
-        conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
-        c.execute("SELECT id , website, username, password, notes FROM vault ORDER BY website")
-        rows = c.fetchall()
-        conn.close()
+            search_item = self.search_var.get().lower() if self.search_var else ""
 
-        count = 0
-        for row in rows:
-            id_, website, username, enc_pass, notes = row 
-            # try:
-            #     password = self.decrypt(enc_pass)
-            # except:
-            #     password = "Decryption Error"
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            c.execute("SELECT id , website, username, password, notes FROM vault ORDER BY website")
+            rows = c.fetchall()
+            conn.close()
 
-            website_lower =website.lower()  if website else ""
-            username_lower = username.lower() if username else ""
-            notes_lower = notes.lower() if notes else ""
+            count = 0
+            for row in rows:
+                id_, website, username, enc_pass, notes = row 
+                # try:
+                #     password = self.decrypt(enc_pass)
+                # except:
+                #     password = "Decryption Error"
 
-            if not search_item or (search_item in website_lower or search_item in username_lower or search_item in notes_lower):
-                self.tree.insert("", tk.END, values=(website, username or "","••••••••", notes or ""), tags=(id_,))
+                website_lower =website.lower()  if website else ""
+                username_lower = username.lower() if username else ""
+                notes_lower = notes.lower() if notes else ""
 
-                count +=1
+                if not search_item or (search_item in website_lower or search_item in username_lower or search_item in notes_lower):
+                    self.tree.insert("", tk.END, values=(website, username or "","••••••••", notes or ""), tags=(id_,))
 
-        if hasattr(self, 'status_bar') and self.status_bar:
-            self.status_bar.config(text=f"Showing {count} entries")
-        # conn.close()
+                    count +=1
+
+            if hasattr(self, 'status_bar') and self.status_bar:
+                self.status_bar.config(text=f"Showing {count} entries")
+            # conn.close()
+
+        finally:
+            self.is_loading = False 
 
     def add_entry(self):
         self.show_entry_dailog()
@@ -584,7 +736,8 @@ class PasswordManager:
                 item = self.tree.identify_row(event.y)
                 if item:
                     self.tree.selection_set(item)
-                    self.menu.tk_popup(event.x_root, event.y_root)
+                    self.tree.focus(item)
+                    self.menu.post(event.x_root, event.y_root)
             finally:
                 self.menu.grab_release()
 
@@ -629,4 +782,3 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = PasswordManager(root)
     root.mainloop()
-
