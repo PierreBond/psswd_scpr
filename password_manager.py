@@ -1,5 +1,6 @@
 import tkinter as tk 
 from tkinter import ttk, messagebox, simpledialog
+import customtkinter as ctk
 import sqlite3
 import base64
 from base64 import urlsafe_b64encode, urlsafe_b64decode
@@ -19,6 +20,10 @@ import hashlib
 
 # from argon2 import PasswordHasher 
 from argon2.low_level import hash_secret_raw, Type
+
+# Set appearance and theme
+ctk.set_appearance_mode("Dark")
+ctk.set_default_color_theme("blue")
 
 DB_NAME = "passwords.db"
 MAX_LOGIN_ATTEMPTS =5 
@@ -75,7 +80,7 @@ class PasswordManager:
     def __init__(self, root):
         self.root = root
         self.root.title(" SecurePassword Manager")
-        self.root.geometry("1200x1000")
+        self.root.geometry("1100x700")  # Adjusted size for better default look
         self.root.resizable(True, True)
         self.is_loading = False
 
@@ -98,61 +103,84 @@ class PasswordManager:
             self.load_passwords()
 
     def create_master_password(self):
-        master = simpledialog.askstring("Setup","Create a strong Master Password:\n(12+ chars, uppecase, lowercase, number, symbol)", show='*')
-        if not master:
-            self.root.quit()
-            return
+        # We'll use a custom CTkToplevel for the setup process
+        setup_window = ctk.CTkToplevel(self.root)
+        setup_window.title("Initial Setup")
+        setup_window.geometry("500x600")
+        setup_window.attributes('-topmost', True)
+        setup_window.grab_set()
 
-        is_valid, message =validate_password_strength(master)
-        if  not is_valid:
-            messagebox.showerror("Weak Password", message)
-            self.root.quit()
-            return
+        ctk.CTkLabel(setup_window, text="Create Master Password", font=("Satoshi", 24, "bold")).pack(pady=30)
+        
+        ctk.CTkLabel(setup_window, text="Requirements:\n• 12+ characters\n• Uppercase & lowercase\n• Number & symbol", 
+                 font=("Satoshi", 12), justify=tk.LEFT).pack(pady=10)
 
+        pw1 = ctk.CTkEntry(setup_window, width=350, placeholder_text="New Master Password", show="*")
+        pw1.pack(pady=10)
+        
+        pw2 = ctk.CTkEntry(setup_window, width=350, placeholder_text="Confirm Password", show="*")
+        pw2.pack(pady=10)
 
-        confirm = simpledialog.askstring("Confirm ", "Re-enter Master Password:", show='*')
-        if master != confirm:
-            messagebox.showerror("Error", "Password does not match")
-            self.root.quit()
-            return
+        def proceed_setup():
+            master = pw1.get()
+            confirm = pw2.get()
             
-        #Generate TOTP secret
+            if master != confirm:
+                messagebox.showerror("Error", "Passwords do not match")
+                return
+
+            is_valid, message = validate_password_strength(master)
+            if not is_valid:
+                messagebox.showerror("Weak Password", message)
+                return
+
+            # Proceed to 2FA Setup
+            setup_window.destroy()
+            self._setup_2fa(master)
+
+        ctk.CTkButton(setup_window, text="Create Vault", command=proceed_setup, 
+                  fg_color="#27ae60", hover_color="#219150", width=350, height=45).pack(pady=30)
+
+    def _setup_2fa(self, master):
+        # Generate TOTP secret
         totp_secret = pyotp.random_base32()
         totp_uri = pyotp.totp.TOTP(totp_secret).provisioning_uri(
             name="LocalPasswordManager",
             issuer_name="MyPasswordManager"
         )
 
-        #Create QR code 
+        # Create QR code 
         qr = pyqrcode.create(totp_uri)
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             qr.png(tmp.name, scale=6)
             qr_path = tmp.name
 
-        # Show QR code
-        qr_window = tk.Toplevel(self.root)
-        qr_window.title("Scan with Authenticator App")
-        qr_window.geometry("600x650")
+        qr_window = ctk.CTkToplevel(self.root)
+        qr_window.title("2FA Setup")
+        qr_window.geometry("600x750")
+        qr_window.grab_set()
 
         img = PhotoImage(file=qr_path)
-        label = tk.Label(qr_window, image=img)
+        label = tk.Label(qr_window, image=img, bg="#2b2b2b") 
         setattr(label, "imge", img)
-        label.pack(pady=10)
+        label.pack(pady=20)
 
-        tk.Label(qr_window, text="Scan this QR code with your\n Authenticator App",
-                    justify=tk.CENTER, font=("Arial", 10), wraplength=300).pack(pady=10)
-        tk.Label(qr_window, text=f"or enter manually:\n{totp_secret}",
-                    font=("Courier",9), bg="#f0f0f0", relief=tk.SOLID, padx=10, pady=10).pack(pady=10)
+        ctk.CTkLabel(qr_window, text="Scan with Authenticator App", font=("Satoshi", 18, "bold")).pack(pady=10)
         
-        def verify_2fa():
-            code = simpledialog.askstring("2FA Required", "Enter the 6-digit code from your app:",parent=qr_window)
-            if code and pyotp.TOTP(totp_secret).verify(code, valid_window=1):
-                try:
-                    os.unlink(qr_path)
-                except:
-                    qr_window.destroy()
+        ctk.CTkLabel(qr_window, text=f"Or enter manually: {totp_secret}", 
+                 font=("Courier", 12), fg_color="#3d3d3d", corner_radius=5, padx=10, pady=5).pack(pady=10)
 
-                # save master password + encrypted TOTP secret
+        code_entry = ctk.CTkEntry(qr_window, width=200, placeholder_text="Enter 6-digit code", font=("Satoshi", 16))
+        code_entry.pack(pady=20)
+
+        def verify_and_save():
+            code = code_entry.get()
+            if code and pyotp.TOTP(totp_secret).verify(code, valid_window=1):
+                try: os.unlink(qr_path)
+                except: pass
+                qr_window.destroy()
+                
+                # encryption logic
                 salt = os.urandom(16)
                 key = derive_key(master, salt)
                 self.fernet = Fernet(key)
@@ -175,14 +203,14 @@ class PasswordManager:
                 conn.commit()
                 conn.close()
 
-                messagebox.showinfo("Success", "Password Manager Created with 2FA")
+                messagebox.showinfo("Success", "Vault setup successful!")
                 self.setup_gui()
                 self.load_passwords()
-        
             else:
-                messagebox.showerror("Error", "Master Password must be at least 8+ characters")
-                # self.root.quit()
-        tk.Button(qr_window, text="Ive Scanned , Enter Code", command=verify_2fa, bg="#4CAF50", fg="white", font=("Arial", 11, "bold")).pack(pady=15)
+                messagebox.showerror("Error", "Invalid code")
+
+        ctk.CTkButton(qr_window, text="Verify & Finish", command=verify_and_save, 
+                  fg_color="#3498db", hover_color="#2980b9", width=200, height=45).pack(pady=10)
 
 
         def cleanup_and_quit(self, window, qr_path):
@@ -195,173 +223,183 @@ class PasswordManager:
 
 
     def ask_master_password(self):
-        if self.login_attempts >= MAX_LOGIN_ATTEMPTS:
-            time_since_last = time.time() - self.last_failed_attempt
+        login_window = ctk.CTkToplevel(self.root)
+        login_window.title("Authentication Required")
+        login_window.geometry("450x500")
+        login_window.attributes('-topmost', True)
+        login_window.grab_set()
 
-            if  time_since_last < LOCKOUT_TIME:
-                remaining =  int(LOCKOUT_TIME - time_since_last)
-                messagebox.showerror("Locked Out", f"Too many failed attempts. Try again in {remaining} seconds.")
+        ctk.CTkLabel(login_window, text="Secure Vault", font=("Satoshi", 28, "bold")).pack(pady=40)
+        
+        pw_entry = ctk.CTkEntry(login_window, width=300, placeholder_text="Enter Master Password", show="*")
+        pw_entry.pack(pady=10)
+        
+        code_entry = ctk.CTkEntry(login_window, width=300, placeholder_text="Enter 2FA Code")
+        code_entry.pack(pady=10)
+
+        def attempt_login():
+            master = pw_entry.get()
+            code = code_entry.get()
+            
+            if self.login_attempts >= MAX_LOGIN_ATTEMPTS:
+                time_since_last = time.time() - self.last_failed_attempt
+                if time_since_last < LOCKOUT_TIME:
+                    remaining = int(LOCKOUT_TIME - time_since_last)
+                    messagebox.showerror("Locked Out", f"Retry in {remaining}s")
+                    return
+                else:
+                    self.login_attempts = 0
+
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            c.execute("SELECT salt, totp_secret FROM master")
+            row = c.fetchone()
+            conn.close()
+
+            if not row:
+                messagebox.showerror("Error", "Database error")
                 self.root.quit()
                 return
-            else:
+
+            salt, encrypted_totp = row
+            key = derive_key(master, salt)
+
+            try:
+                temp_fernet = Fernet(key)
+                totp_secret = temp_fernet.decrypt(encrypted_totp.encode()).decode()
+            except Exception:
+                self.login_attempts += 1
+                self.last_failed_attempt = time.time()
+                messagebox.showerror("Login Failed", f"Invalid password. {MAX_LOGIN_ATTEMPTS - self.login_attempts} attempts left")
+                return
+
+            if code and pyotp.TOTP(totp_secret).verify(code):
+                self.fernet = temp_fernet
+                self.master_password = master
                 self.login_attempts = 0
-
-
-        master = simpledialog.askstring("Login", "Enter master Password:",show='*')
-        if not master :
-            self.root.quit()
-            return
-        
-        conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
-        c.execute("SELECT salt, totp_secret FROM master")
-        row = c.fetchone()
-        conn.close()
-
-        if not row :
-            messagebox.showerror("Error", "database corrupted")
-            self.root.quit()
-            return
-        
-        salt , encrypted_totp= row
-        key = derive_key(master, salt)
-
-        try :
-            temp_fernet = Fernet(key)
-            totp_secret = temp_fernet.decrypt(encrypted_totp.encode()).decode()
-            
-        except Exception as e:
-            self.login_attempts +=1
-            self.last_failed_attempt = time.time()
-            remaining = MAX_LOGIN_ATTEMPTS - self.login_attempts
-            messagebox.showerror("Authentication Failed", f"Invalid Credentials. {remaining} attempts remaining")
-            if self.login_attempts < MAX_LOGIN_ATTEMPTS:
-                self.ask_master_password()
+                login_window.destroy()
+                self.setup_gui()
+                self.load_passwords()
             else:
-                self.root.quit()
-            return
+                self.login_attempts += 1
+                self.last_failed_attempt = time.time()
+                messagebox.showerror("Login Failed", "Invalid 2FA code")
+
+        ctk.CTkButton(login_window, text="Unlock Vault", command=attempt_login, 
+                  fg_color="#3498db", hover_color="#2980b9", width=300, height=45).pack(pady=30)
         
-        # ask for 2fa
-        code = simpledialog.askstring("2FA Required", "Enter 6-digit code from Authenticator app:", show='*')
-        if code and pyotp.TOTP(totp_secret).verify(code):
-            self.fernet = temp_fernet
-            self.master_password = master
-            self.login_attempts = 0 #resset on success
-
-        else:
-            self.login_attempts += 1
-            self.last_failed_attempt = time.time()
-            remaining = MAX_LOGIN_ATTEMPTS - self.login_attempts
-            messagebox.showerror("Authentication Failed ", f"Invalid 2FA code. {remaining} attempts remaining")
-
-            if self.login_attempts < MAX_LOGIN_ATTEMPTS:
-                self.ask_master_password()
-            else:
-                self.root.quit()
+        login_window.protocol("WM_DELETE_WINDOW", self.root.quit)
 
     def style_application(self):
         style = ttk.Style()
         style.theme_use("clam")
 
-        style.configure("Custom.Treeview", background= "#ffffff", foreground="#2d3436", fieldbackground="white", rowheight= 30, font=("Satoshi", 10), borderwidth =0)
-        style.map("Custom.Treeview", background=[('selected', '#3498bd')], foreground=[('selected', 'white')])
-        style.configure("Custom.Treeview.Heading", background="f1f2f6", foreground = "#2d3436", font=("Satoshi", 10, "bold"), relief = "flat")
-        style.map("Custom.Treeview.Heading", background=[('active', '#dfe4ea')])
+        # Treeview coloring for dark mode
+        style.configure("Custom.Treeview", 
+                        background="#2b2b2b", 
+                        foreground="white", 
+                        fieldbackground="#2b2b2b", 
+                        rowheight=35, 
+                        font=("Satoshi", 11), 
+                        borderwidth=0)
+        
+        style.map("Custom.Treeview", 
+                  background=[('selected', '#3498db')], 
+                  foreground=[('selected', 'white')])
+
+        style.configure("Custom.Treeview.Heading", 
+                        background="#3d3d3d", 
+                        foreground="white", 
+                        font=("Satoshi", 11, "bold"), 
+                        relief="flat")
+        
+        style.map("Custom.Treeview.Heading", 
+                  background=[('active', '#4d4d4d')])
 
     def setup_gui(self):
-        """Main entry point for building the modern UI layout."""
         self.style_application()
-        self.root.configure(bg="#f5f6fa") 
-
-        self.main_container = tk.Frame(self.root, bg="#f5f6fa")
+        
+        # In CustomTkinter, we often use CTkFrame for better background handling
+        self.main_container = ctk.CTkFrame(self.root)
         self.main_container.pack(fill=tk.BOTH, expand=True)
 
-        self.sidebar = tk.Frame(self.main_container, bg="#2c3e50", width=220)
+        self.sidebar = ctk.CTkFrame(self.main_container, width=220, corner_radius=0)
         self.sidebar.pack(side=tk.LEFT, fill=tk.Y)
         self.sidebar.pack_propagate(False) 
         
         self.setup_sidebar_content()
 
-        self.content_area = tk.Frame(self.main_container, bg="#f5f6fa")
+        self.content_area = ctk.CTkFrame(self.main_container, corner_radius=0)
         self.content_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         self.setup_dashboard_header()
         self.setup_main_table()
         
-        
         self.load_passwords()
 
-        self.status_bar = tk.Label(self.root, text="Ready", bd=0, 
-                           bg="#ecf0f1", fg="#7f8c8d", anchor=tk.W, 
-                           font=("Satoshi", 9), padx=20, pady=5)
-        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        self.status_bar = ctk.CTkLabel(self.root, text="Ready", 
+                           anchor=tk.W, 
+                           font=("Satoshi", 12), padx=20)
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 5))
 
     def setup_sidebar_content(self):
-        tk.Label(self.sidebar, text="AVA", font=("Satoshi", 24, "bold"), 
-                 bg="#2c3e50", fg="#3498db").pack(pady=(40, 10))
+        ctk.CTkLabel(self.sidebar, text="AVA", font=("Satoshi", 32, "bold"), 
+                 text_color="#3498db").pack(pady=(40, 5))
         
-        tk.Label(self.sidebar, text="Secure Vault", font=("Satoshi", 12, "bold"), 
-                 bg="#2c3e50", fg="#ecf0f1").pack(pady=(0, 40))
+        ctk.CTkLabel(self.sidebar, text="Secure Vault", font=("Satoshi", 14, "bold"), 
+                 text_color="#ecf0f1").pack(pady=(0, 40))
 
         menu_items = [
             ("Dashboard", self.load_main_dashboard),
-          
             ("Security Audit", self.run_security_audit),
             ("Settings", self.show_settings)  
         ]
 
         for text, cmd in menu_items:
-            btn = tk.Button(self.sidebar, text=text, font=("Satoshi", 11),
-                            bg="#2c3e50", fg="#bdc3c7", 
-                            bd=0, highlightthickness=0,
-                            activebackground="#34495e", activeforeground="white",
-                            cursor="hand2", anchor="w", padx=25, pady=12,
+            btn = ctk.CTkButton(self.sidebar, text=text, font=("Satoshi", 13),
+                            fg_color="transparent", text_color="#bdc3c7", 
+                            hover_color="#34495e",
+                            anchor="w", corner_radius=0, height=45,
                             command=cmd)
-            btn.pack(fill=tk.X)
+            btn.pack(fill=tk.X, padx=10, pady=2)
 
-        tk.Label(self.sidebar, text="v1.0.0 • Encrypted", font=("Satoshi", 8),
-                 bg="#2c3e50", fg="#7f8c8d").pack(side=tk.BOTTOM, pady=20)
+        ctk.CTkLabel(self.sidebar, text="v1.0.0 • Encrypted", font=("Satoshi", 10),
+                 text_color="#7f8c8d").pack(side=tk.BOTTOM, pady=20)
         
 
     def load_main_dashboard(self):
-        """Clears the screen and reloads the main password list view."""
         self.clear_content_area()
         self.setup_dashboard_header()
         self.setup_main_table()
         self.root.after(10, self.load_passwords)
-    def setup_dashboard_header(self):
-        """Builds the top area of the main content (Title + Search + Add)."""
-        
-        top_bar = tk.Frame(self.content_area, bg="#f5f6fa", height=80)
+    def setup_dashboard_header(self):      
+        top_bar = ctk.CTkFrame(self.content_area, fg_color="transparent")
         top_bar.pack(fill=tk.X, padx=30, pady=(30, 20))
 
-        
-        tk.Label(top_bar, text="All Passwords", font=("Satoshi", 24, "bold"), 
-                 bg="#f5f6fa", fg="#2d3436").pack(side=tk.LEFT)
+        ctk.CTkLabel(top_bar, text="All Passwords", font=("Satoshi", 28, "bold")).pack(side=tk.LEFT)
 
-        tk.Button(top_bar, text="New Entry", command=self.add_entry, 
-                  bg="#27ae60", fg="white", font=("Satoshi", 10, "bold"), 
-                  relief="flat", padx=20, pady=10, cursor="hand2").pack(side=tk.RIGHT)
+        ctk.CTkButton(top_bar, text=" New Entry", command=self.add_entry, 
+                  fg_color="#27ae60", hover_color="#219150", font=("Satoshi", 13, "bold"), 
+                  width=120, height=40).pack(side=tk.RIGHT)
 
-        search_container = tk.Frame(self.content_area, bg="white", padx=10, pady=5)
+        search_container = ctk.CTkFrame(self.content_area, fg_color="#2b2b2b", corner_radius=10)
         search_container.pack(fill=tk.X, padx=30, pady=(0, 20))
         
-        tk.Label(search_container, text="search", font=("Satoshi", 12), bg="white", fg="#b2bec3").pack(side=tk.LEFT, padx=10)
+        ctk.CTkLabel(search_container, text="search", font=("Satoshi", 16)).pack(side=tk.LEFT, padx=10)
 
         self.search_var = tk.StringVar()
-        self.search_entry = tk.Entry(search_container, textvariable=self.search_var, 
-                                     font=("Satoshi", 12), bg="white", bd=0)
-        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=8)
+        self.search_entry = ctk.CTkEntry(search_container, textvariable=self.search_var, 
+                                     font=("Satoshi", 13), border_width=0, fg_color="transparent",
+                                     placeholder_text="Search accounts...")
+        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, pady=5)
         self.search_entry.bind('<KeyRelease>', lambda e: self.load_passwords())
 
-        tk.Button(search_container, text="✕", command=self.clear_search, 
-                  bg="white", fg="#b2bec3", font=("Satoshi", 10, "bold"), 
-                  bd=0, cursor="hand2").pack(side=tk.RIGHT, padx=10)
+        ctk.CTkButton(search_container, text="✕", command=self.clear_search, 
+                  fg_color="transparent", hover_color="#3d3d3d", width=30, height=30).pack(side=tk.RIGHT, padx=5)
 
     def setup_main_table(self):
-        """Builds the Treeview table inside the content area."""
         # Container for the table to give it a white card-like background
-        table_card = tk.Frame(self.content_area, bg="white")
+        table_card = ctk.CTkFrame(self.content_area, fg_color="#1e1e1e", corner_radius=15)
         table_card.pack(fill=tk.BOTH, expand=True, padx=30, pady=(0, 30))
 
         scrollbar = ttk.Scrollbar(table_card)
@@ -396,7 +434,6 @@ class PasswordManager:
 
 
     def run_security_audit(self):
-        """Scans the database for reused passwords and weak entries."""
         conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
         c.execute("SELECT website, password FROM vault")
@@ -418,20 +455,17 @@ class PasswordManager:
                 password_map[enc_pass] = website
 
         if duplicates:
-            report = "⚠️ Reused Passwords Found:\n\n" + "\n".join(duplicates)
+            report = " Reused Passwords Found:\n\n" + "\n".join(duplicates)
             report += "\n\nIt is recommended to use unique passwords for every site."
             messagebox.showwarning("Security Audit Result", report)
         else:
-            messagebox.showinfo("Security Audit Result", "✅ No reused passwords found! Your vault looks secure.")
+            messagebox.showinfo("Security Audit Result", "No reused passwords found! Your vault looks secure.")
     def clear_search(self):
-        """Resets the search box and restores the full list."""
-        # Check if search_var is not None before calling .set()
         if self.search_var is not None:
             self.search_var.set("")
             
         self.load_passwords()
         
-        # Check if search_entry is not None before calling .focus()
         if self.search_entry is not None:
             self.search_entry.focus()
 
@@ -448,36 +482,34 @@ class PasswordManager:
     def show_settings(self):
         self.clear_content_area()
         
-        container = tk.Frame(self.content_area, bg="white", padx=40, pady=40)
+        container = ctk.CTkFrame(self.content_area, corner_radius=15)
         container.pack(fill=tk.BOTH, expand=True, padx=30, pady=30)
 
-        tk.Label(container, text="Settings", font=("Satoshi", 20, "bold"), 
-                bg="white", fg="#2d3436").pack(anchor="w", pady=(0, 20))
+        ctk.CTkLabel(container, text="Settings", font=("Satoshi", 24, "bold")).pack(anchor="w", padx=40, pady=(40, 20))
 
-        tk.Label(container, text="SECURITY", font=("Satoshi", 9, "bold"), 
-                bg="white", fg="#b2bec3").pack(anchor="w", pady=(10, 5))
+        ctk.CTkLabel(container, text="SECURITY", font=("Satoshi", 11, "bold"), 
+                 text_color="#7f8c8d").pack(anchor="w", padx=40, pady=(10, 5))
 
-        clip_frame = tk.Frame(container, bg="white")
-        clip_frame.pack(fill=tk.X, pady=10)
+        clip_frame = ctk.CTkFrame(container, fg_color="transparent")
+        clip_frame.pack(fill=tk.X, padx=40, pady=10)
         
-        tk.Label(clip_frame, text="Clear clipboard after (seconds):", 
-                font=("Satoshi", 11), bg="white").pack(side=tk.LEFT)
+        ctk.CTkLabel(clip_frame, text="Clear clipboard after (seconds):", 
+                 font=("Satoshi", 13)).pack(side=tk.LEFT)
         
         self.clip_delay = tk.Spinbox(clip_frame, from_=5, to=300, width=5)
         self.clip_delay.pack(side=tk.RIGHT)
 
-        tk.Label(container, text="DATABASE", font=("Satoshi", 9, "bold"), 
-                bg="white", fg="#b2bec3").pack(anchor="w", pady=(20, 5))
+        ctk.CTkLabel(container, text="DATABASE", font=("Satoshi", 11, "bold"), 
+                 text_color="#7f8c8d").pack(anchor="w", padx=40, pady=(20, 5))
 
-        tk.Button(container, text="Export Vault (JSON)", bg="#f1f2f6", relief="flat",
-                font=("Satoshi", 10), padx=10, pady=5).pack(anchor="w", pady=5)
+        ctk.CTkButton(container, text="Export Vault (JSON)", fg_color="#3d3d3d", hover_color="#4d4d4d",
+                 font=("Satoshi", 12), width=200).pack(anchor="w", padx=40, pady=5)
         
-        tk.Button(container, text="Change Master Password", bg="#f1f2f6", relief="flat",
-                font=("Satoshi", 10), padx=10, pady=5).pack(anchor="w", pady=5)
+        ctk.CTkButton(container, text="Change Master Password", fg_color="#3d3d3d", hover_color="#4d4d4d",
+                 font=("Satoshi", 12), width=200).pack(anchor="w", padx=40, pady=5)
 
-        tk.Button(container, text="Wipe All Data", bg="#feeef0", fg="#e74c3c", 
-                relief="flat", font=("Satoshi", 10, "bold"), 
-                padx=10, pady=5).pack(side=tk.BOTTOM, anchor="w")
+        ctk.CTkButton(container, text="Wipe All Data", fg_color="#e74c3c", hover_color="#c0392b", 
+                 font=("Satoshi", 12, "bold"), width=200).pack(side=tk.BOTTOM, anchor="w", padx=40, pady=40)
 
     def encrypt(self, text: str)-> str:
         if self.fernet is None:
@@ -577,26 +609,27 @@ class PasswordManager:
         # self.show_entry_dailog(edit_mode=True, entry_id = entry_id, current = values)
 
     def show_entry_dailog(self, edit_mode= False, entry_id=None, current = None , password=None):
-        dailog = tk.Toplevel(self.root)
+        dailog = ctk.CTkToplevel(self.root)
         dailog.title("Edit Entry" if edit_mode else "Add New Entry")
-        dailog.geometry("500x450")
+        dailog.geometry("500x550")
         dailog.transient(self.root)
         dailog.grab_set()
 
-        tk.Label(dailog, text="Website/Service:" ,font=("Arial", 10, "bold")).pack(pady=5)
-        website_entry = tk.Entry(dailog, width=50,font=("Arial", 10))
-        website_entry.pack(pady=5)
+        ctk.CTkLabel(dailog, text="Website/Service:", font=("Satoshi", 13, "bold")).pack(pady=(20, 5), padx=20, anchor="w")
+        website_entry = ctk.CTkEntry(dailog, width=460, font=("Satoshi", 13), placeholder_text="e.g. google.com")
+        website_entry.pack(pady=5, padx=20)
 
-        tk.Label(dailog, text="Username/Email:",font=("Arial", 10, "bold")).pack(pady=5)
-        username_entry = tk.Entry(dailog, width=50,font=("Arial", 10))
-        username_entry.pack(pady=5)
+        ctk.CTkLabel(dailog, text="Username/Email:", font=("Satoshi", 13, "bold")).pack(pady=(10, 5), padx=20, anchor="w")
+        username_entry = ctk.CTkEntry(dailog, width=460, font=("Satoshi", 13), placeholder_text="e.g. user@example.com")
+        username_entry.pack(pady=5, padx=20)
 
-        tk.Label(dailog, text="Password:",font=("Arial", 10, "bold")).pack(pady=5)
-        password_frame = tk.Entry(dailog, width=50,font=("Arial", 10))
-        password_frame.pack(pady=5)
+        ctk.CTkLabel(dailog, text="Password:", font=("Satoshi", 13, "bold")).pack(pady=(10, 5), padx=20, anchor="w")
+        
+        password_frame = ctk.CTkFrame(dailog, fg_color="transparent")
+        password_frame.pack(fill=tk.X, padx=20, pady=5)
 
         show_password = tk.BooleanVar()
-        password_entry = tk.Entry(password_frame, width=43,font=("Arial", 10), show="*")
+        password_entry = ctk.CTkEntry(password_frame, width=380, font=("Satoshi", 13), show="*")
         password_entry.pack(side=tk.LEFT)
 
         def toggle_password():
@@ -605,11 +638,11 @@ class PasswordManager:
             else:
                 password_entry.config(show="*")
 
-        tk.Checkbutton(password_frame, text="show", variable=show_password, command=toggle_password).pack(side=tk.LEFT, padx=5)
+        ctk.CTkCheckBox(password_frame, text="Show", variable=show_password, command=toggle_password, width=60).pack(side=tk.LEFT, padx=5)
 
-        tk.Label(dailog, text="Notes(optional):",font=("Arial", 10, "bold")).pack(pady=5)
-        notes_entry = tk.Entry(dailog, width=50,font=("Arial", 10))
-        notes_entry.pack(pady=5)
+        ctk.CTkLabel(dailog, text="Notes (optional):", font=("Satoshi", 13, "bold")).pack(pady=(10, 5), padx=20, anchor="w")
+        notes_entry = ctk.CTkEntry(dailog, width=460, font=("Satoshi", 13), placeholder_text="Add any additional details...")
+        notes_entry.pack(pady=5, padx=20)
 
         # generate password button
         def generate_password():
@@ -620,8 +653,9 @@ class PasswordManager:
             password_entry.delete(0, tk.END)
             password_entry.insert(0, new_pass)
 
-        tk.Button(dailog, text="Generate Strong Password (20 chars)",
-                  command=generate_password , bg="#FF9800", fg="white" ,font=("Arial", 9, "bold")).pack(pady=10)
+        ctk.CTkButton(dailog, text="Generate Strong Password",
+                  command=generate_password, fg_color="#e67e22", hover_color="#d35400", 
+                  font=("Satoshi", 12, "bold"), height=35).pack(pady=15)
         
         if edit_mode and current:
             website_entry.insert(0, current[0])
@@ -659,10 +693,14 @@ class PasswordManager:
             messagebox.showinfo("Success", "Password saved successfully")
 
         #save button 
-        btn_frame = tk.Frame(dailog)
-        btn_frame.pack(pady=15)
-        tk.Button(btn_frame, text="Save", command= save, bg="#4CAF50",fg="white" , width=15, font=("Arial", 11, "bold")).pack(side=tk.LEFT,padx=10)
-        tk.Button(btn_frame, text="cancel", command= dailog.destroy, bg="#f44336",fg="white", width=15, font=("Arial", 11, "bold")).pack(side=tk.LEFT,padx=5)
+        btn_frame = ctk.CTkFrame(dailog, fg_color="transparent")
+        btn_frame.pack(pady=20, padx=20, fill=tk.X)
+        
+        ctk.CTkButton(btn_frame, text="Save Entry", command=save, fg_color="#2ecc71", hover_color="#27ae60", 
+                  width=210, height=45, font=("Satoshi", 14, "bold")).pack(side=tk.LEFT, expand=True, padx=(0, 5))
+        
+        ctk.CTkButton(btn_frame, text="Cancel", command=dailog.destroy, fg_color="#95a5a6", hover_color="#7f8c8d", 
+                  width=210, height=45, font=("Satoshi", 14, "bold")).pack(side=tk.LEFT, expand=True, padx=(5, 0))
 
     def delete_entry(self):
 
@@ -779,6 +817,6 @@ if __name__ == "__main__":
         ctypes.windll.user32.SetProcessDPIAware()
 
 
-    root = tk.Tk()
+    root = ctk.CTk()
     app = PasswordManager(root)
     root.mainloop()
