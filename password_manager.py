@@ -112,7 +112,7 @@ class PasswordManager:
 
         ctk.CTkLabel(setup_window, text="Create Master Password", font=("Satoshi", 24, "bold")).pack(pady=30)
         
-        ctk.CTkLabel(setup_window, text="Requirements:\n• 12+ characters\n• Uppercase & lowercase\n• Number & symbol", 
+        ctk.CTkLabel(setup_window, text="Requirements:\n- 12+ characters\n- Uppercase & lowercase\n- Number & symbol", 
                  font=("Satoshi", 12), justify=tk.LEFT).pack(pady=10)
 
         pw1 = ctk.CTkEntry(setup_window, width=350, placeholder_text="New Master Password", show="*")
@@ -319,7 +319,6 @@ class PasswordManager:
     def setup_gui(self):
         self.style_application()
         
-        # In CustomTkinter, we often use CTkFrame for better background handling
         self.main_container = ctk.CTkFrame(self.root)
         self.main_container.pack(fill=tk.BOTH, expand=True)
 
@@ -363,7 +362,7 @@ class PasswordManager:
                             command=cmd)
             btn.pack(fill=tk.X, padx=10, pady=2)
 
-        ctk.CTkLabel(self.sidebar, text="v1.0.0 • Encrypted", font=("Satoshi", 10),
+        ctk.CTkLabel(self.sidebar, text="v1.0.0 - Encrypted", font=("Satoshi", 10),
                  text_color="#7f8c8d").pack(side=tk.BOTTOM, pady=20)
         
 
@@ -394,7 +393,7 @@ class PasswordManager:
         self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, pady=5)
         self.search_entry.bind('<KeyRelease>', lambda e: self.load_passwords())
 
-        ctk.CTkButton(search_container, text="✕", command=self.clear_search, 
+        ctk.CTkButton(search_container, text="X", command=self.clear_search, 
                   fg_color="transparent", hover_color="#3d3d3d", width=30, height=30).pack(side=tk.RIGHT, padx=5)
 
     def setup_main_table(self):
@@ -409,7 +408,7 @@ class PasswordManager:
         self.tree = ttk.Treeview(table_card, columns=columns, show="headings", 
                                  yscrollcommand=scrollbar.set, style="Custom.Treeview")
         self.tree.pack(fill=tk.BOTH, expand=True)
-        scrollbar.config(command=self.tree.yview)
+        scrollbar.configure(command=self.tree.yview)
 
         # Column Configuration
         self.tree.heading("website", text="WEBSITE")
@@ -450,7 +449,7 @@ class PasswordManager:
 
         for website, enc_pass in rows:
             if enc_pass in password_map:
-                duplicates.append(f"• {website} (same as {password_map[enc_pass]})")
+                duplicates.append(f"- {website} (same as {password_map[enc_pass]})")
             else:
                 password_map[enc_pass] = website
 
@@ -564,12 +563,12 @@ class PasswordManager:
                 notes_lower = notes.lower() if notes else ""
 
                 if not search_item or (search_item in website_lower or search_item in username_lower or search_item in notes_lower):
-                    self.tree.insert("", tk.END, values=(website, username or "","••••••••", notes or ""), tags=(id_,))
+                    self.tree.insert("", tk.END, values=(website, username or "","********", notes or ""), tags=(id_,))
 
                     count +=1
 
             if hasattr(self, 'status_bar') and self.status_bar:
-                self.status_bar.config(text=f"Showing {count} entries")
+                self.status_bar.configure(text=f"Showing {count} entries")
             # conn.close()
 
         finally:
@@ -634,9 +633,9 @@ class PasswordManager:
 
         def toggle_password():
             if show_password.get():
-                password_entry.config(show="")
+                password_entry.configure(show="")
             else:
-                password_entry.config(show="*")
+                password_entry.configure(show="*")
 
         ctk.CTkCheckBox(password_frame, text="Show", variable=show_password, command=toggle_password, width=60).pack(side=tk.LEFT, padx=5)
 
@@ -759,13 +758,13 @@ class PasswordManager:
             del password
 
             if hasattr(self, 'status_bar') and self.status_bar:
-                self.status_bar.config(text="Password copied to clipboard (will clear in 30s)")
+                self.status_bar.configure(text="Password copied to clipboard (will clear in 30s)")
 
             self.root.after(30000, lambda: pyperclip.copy(""))
 
 
-        except:
-            messagebox.showerror("Error", "Failed to decrypt password")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to decrypt password: {str(e)}")
 
     def show_context_menu(self, event):
             if self.tree is None or self.menu is None:
@@ -791,7 +790,7 @@ class PasswordManager:
         if username:
             pyperclip.copy(username)
             if hasattr(self , 'status_bar') and self.status_bar:
-                self.status_bar.config(text="Username copied to clipboard")
+                self.status_bar.configure(text="Username copied to clipboard")
     
     def secure_exit(self):
         if messagebox.askyesno("Exit", "Are you sure you want to exit?"):
