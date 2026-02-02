@@ -12,6 +12,8 @@ import pyperclip
 from typing import Optional
 import pyotp
 import pyqrcode
+import json
+from tkinter import filedialog
 import tempfile
 import re
 from tkinter import PhotoImage
@@ -35,14 +37,13 @@ def derive_key( master_password: str, salt: bytes) -> bytes:
         salt = os.urandom(16)
 
     raw_key = hash_secret_raw(
-        secret= master_password.encode(),
-        salt =salt,
-        time_cost = 3,
-        memory_cost= 65536,
-        parallelism = 4, 
-        hash_len =32,
-        type = Type.ID
-
+        secret=master_password.encode(),
+        salt=salt,
+        time_cost=3,
+        memory_cost=65536,
+        parallelism=4, 
+        hash_len=32,
+        type=Type.ID
     )
     key = urlsafe_b64encode(raw_key)
     return key
@@ -92,6 +93,7 @@ class PasswordManager:
         self.menu = None
         self.login_attempts = 0
         self.last_failed_attempt = 0
+        self.clip_delay_var = tk.IntVar(value=30)
 
         if not os.path.exists(DB_NAME):
             self.create_master_password()
@@ -103,7 +105,6 @@ class PasswordManager:
             self.load_passwords()
 
     def create_master_password(self):
-        # We'll use a custom CTkToplevel for the setup process
         setup_window = ctk.CTkToplevel(self.root)
         setup_window.title("Initial Setup")
         setup_window.geometry("500x600")
@@ -134,7 +135,6 @@ class PasswordManager:
                 messagebox.showerror("Weak Password", message)
                 return
 
-            # Proceed to 2FA Setup
             setup_window.destroy()
             self._setup_2fa(master)
 
@@ -212,7 +212,6 @@ class PasswordManager:
         ctk.CTkButton(qr_window, text="Verify & Finish", command=verify_and_save, 
                   fg_color="#3498db", hover_color="#2980b9", width=200, height=45).pack(pady=10)
 
-
         def cleanup_and_quit(self, window, qr_path):
             try:
                 os.unlink(qr_path)
@@ -220,7 +219,6 @@ class PasswordManager:
                 pass
             window.destroy()
             self.root.quit()
-
 
     def ask_master_password(self):
         login_window = ctk.CTkToplevel(self.root)
@@ -294,7 +292,6 @@ class PasswordManager:
         style = ttk.Style()
         style.theme_use("clam")
 
-        # Treeview coloring for dark mode
         style.configure("Custom.Treeview", 
                         background="#2b2b2b", 
                         foreground="white", 
@@ -357,27 +354,27 @@ class PasswordManager:
         for text, cmd in menu_items:
             btn = ctk.CTkButton(self.sidebar, text=text, font=("Satoshi", 13),
                             fg_color="transparent", text_color="#bdc3c7", 
-                            hover_color="#34495e",
+                            hover_color="#3d3d3d",
                             anchor="w", corner_radius=0, height=45,
                             command=cmd)
             btn.pack(fill=tk.X, padx=10, pady=2)
 
         ctk.CTkLabel(self.sidebar, text="v1.0.0 - Encrypted", font=("Satoshi", 10),
                  text_color="#7f8c8d").pack(side=tk.BOTTOM, pady=20)
-        
 
     def load_main_dashboard(self):
         self.clear_content_area()
         self.setup_dashboard_header()
         self.setup_main_table()
         self.root.after(10, self.load_passwords)
+
     def setup_dashboard_header(self):      
         top_bar = ctk.CTkFrame(self.content_area, fg_color="transparent")
         top_bar.pack(fill=tk.X, padx=30, pady=(30, 20))
 
         ctk.CTkLabel(top_bar, text="All Passwords", font=("Satoshi", 28, "bold")).pack(side=tk.LEFT)
 
-        ctk.CTkButton(top_bar, text=" New Entry", command=self.add_entry, 
+        ctk.CTkButton(top_bar, text="New Entry", command=self.add_entry, 
                   fg_color="#27ae60", hover_color="#219150", font=("Satoshi", 13, "bold"), 
                   width=120, height=40).pack(side=tk.RIGHT)
 
@@ -397,7 +394,6 @@ class PasswordManager:
                   fg_color="transparent", hover_color="#3d3d3d", width=30, height=30).pack(side=tk.RIGHT, padx=5)
 
     def setup_main_table(self):
-        # Container for the table to give it a white card-like background
         table_card = ctk.CTkFrame(self.content_area, fg_color="#1e1e1e", corner_radius=15)
         table_card.pack(fill=tk.BOTH, expand=True, padx=30, pady=(0, 30))
 
@@ -410,7 +406,6 @@ class PasswordManager:
         self.tree.pack(fill=tk.BOTH, expand=True)
         scrollbar.configure(command=self.tree.yview)
 
-        # Column Configuration
         self.tree.heading("website", text="WEBSITE")
         self.tree.heading("username", text="USERNAME")
         self.tree.heading("password", text="PASSWORD")
@@ -421,16 +416,13 @@ class PasswordManager:
         self.tree.column("password", width=120, anchor="center")
         self.tree.column("notes", width=200)
 
-        # right click menu 
-        self.menu = tk.Menu(self.root, tearoff=0,bg = "white", font=("Satoshi", 10))
-        self.menu.add_command(label = "Copy password", command= self.copy_password)
-        self.menu.add_command(label = "Copy username", command= self.copy_username)
+        self.menu = tk.Menu(self.root, tearoff=0, bg="white", font=("Satoshi", 10))
+        self.menu.add_command(label="Copy password", command=self.copy_password)
+        self.menu.add_command(label="Copy username", command=self.copy_username)
         self.menu.add_separator()
-        self.menu.add_command(label = "Edit", command= self.edit_entry)
-        self.menu.add_command(label = "Delete", command= self.delete_entry)
+        self.menu.add_command(label="Edit", command=self.edit_entry)
+        self.menu.add_command(label="Delete", command=self.delete_entry)
         self.tree.bind("<Button-3>", self.show_context_menu)
-
-
 
     def run_security_audit(self):
         conn = sqlite3.connect(DB_NAME)
@@ -443,7 +435,6 @@ class PasswordManager:
             messagebox.showinfo("Security Audit", "Vault is empty. Nothing to audit!")
             return
 
-        # Dictionary to track which encrypted passwords are used where
         password_map = {}
         duplicates = []
 
@@ -459,6 +450,7 @@ class PasswordManager:
             messagebox.showwarning("Security Audit Result", report)
         else:
             messagebox.showinfo("Security Audit Result", "No reused passwords found! Your vault looks secure.")
+
     def clear_search(self):
         if self.search_var is not None:
             self.search_var.set("")
@@ -468,9 +460,8 @@ class PasswordManager:
         if self.search_entry is not None:
             self.search_entry.focus()
 
-
     def clear_content_area(self):
-        if  hasattr(self, 'tree') and self.tree:
+        if hasattr(self, 'tree') and self.tree:
             self.tree.unbind("<Button-3>")
        
         for widget in self.content_area.winfo_children():
@@ -495,27 +486,123 @@ class PasswordManager:
         ctk.CTkLabel(clip_frame, text="Clear clipboard after (seconds):", 
                  font=("Satoshi", 13)).pack(side=tk.LEFT)
         
-        self.clip_delay = tk.Spinbox(clip_frame, from_=5, to=300, width=5)
-        self.clip_delay.pack(side=tk.RIGHT)
+        self.clip_delay_spin = tk.Spinbox(clip_frame, from_=5, to=300, width=5, textvariable=self.clip_delay_var, command=self.update_clip_delay)
+        self.clip_delay_spin.pack(side=tk.RIGHT)
 
         ctk.CTkLabel(container, text="DATABASE", font=("Satoshi", 11, "bold"), 
                  text_color="#7f8c8d").pack(anchor="w", padx=40, pady=(20, 5))
 
         ctk.CTkButton(container, text="Export Vault (JSON)", fg_color="#3d3d3d", hover_color="#4d4d4d",
-                 font=("Satoshi", 12), width=200).pack(anchor="w", padx=40, pady=5)
+                 font=("Satoshi", 12), width=200, command=self.export_vault).pack(anchor="w", padx=40, pady=5)
         
         ctk.CTkButton(container, text="Change Master Password", fg_color="#3d3d3d", hover_color="#4d4d4d",
-                 font=("Satoshi", 12), width=200).pack(anchor="w", padx=40, pady=5)
+                 font=("Satoshi", 12), width=200, command=self.change_master_password).pack(anchor="w", padx=40, pady=5)
 
         ctk.CTkButton(container, text="Wipe All Data", fg_color="#e74c3c", hover_color="#c0392b", 
-                 font=("Satoshi", 12, "bold"), width=200).pack(side=tk.BOTTOM, anchor="w", padx=40, pady=40)
+                 font=("Satoshi", 12, "bold"), width=200, command=self.wipe_all_data).pack(side=tk.BOTTOM, anchor="w", padx=40, pady=40)
 
-    def encrypt(self, text: str)-> str:
+    def update_clip_delay(self):
+        try:
+            val = int(self.clip_delay_var.get())
+            if 5 <= val <= 300:
+                self.status_bar.configure(text=f"Clipboard delay set to {val}s")
+        except:
+            pass
+
+    def export_vault(self):
+        path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")])
+        if not path:
+            return
+        
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            c.execute("SELECT website, username, password, notes FROM vault")
+            rows = c.fetchall()
+            conn.close()
+
+            data = []
+            for website, username, enc_pass, notes in rows:
+                data.append({
+                    "website": website,
+                    "username": username,
+                    "password": self.decrypt(enc_pass),
+                    "notes": notes
+                })
+
+            with open(path, 'w') as f:
+                json.dump(data, f, indent=4)
+            messagebox.showinfo("Success", f"Vault exported to {path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Export failed: {str(e)}")
+
+    def change_master_password(self):
+        current = simpledialog.askstring("Auth", "Enter current master password:", show="*")
+        if not current or current != self.master_password:
+            messagebox.showerror("Error", "Incorrect current password")
+            return
+
+        new_pw = simpledialog.askstring("Setup", "Enter new master password:", show="*")
+        if not new_pw:
+            return
+        
+        confirm = simpledialog.askstring("Setup", "Confirm new master password:", show="*")
+        if new_pw != confirm:
+            messagebox.showerror("Error", "Passwords do not match")
+            return
+
+        is_valid, msg = validate_password_strength(new_pw)
+        if not is_valid:
+            messagebox.showerror("Weak Password", msg)
+            return
+
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            c.execute("SELECT totp_secret FROM master")
+            enc_totp = c.fetchone()[0]
+            
+            totp_secret = self.decrypt(enc_totp)
+            
+            new_salt = os.urandom(16)
+            new_key = derive_key(new_pw, new_salt)
+            new_fernet = Fernet(new_key)
+            
+            new_enc_totp = new_fernet.encrypt(totp_secret.encode()).decode()
+            
+            c.execute("SELECT id, password FROM vault")
+            entries = c.fetchall()
+            
+            for eid, old_enc_pass in entries:
+                real_pass = self.decrypt(old_enc_pass)
+                new_enc_pass = new_fernet.encrypt(real_pass.encode()).decode()
+                c.execute("UPDATE vault SET password=? WHERE id=?", (new_enc_pass, eid))
+            
+            c.execute("UPDATE master SET salt=?, totp_secret=?", (new_salt, new_enc_totp))
+            conn.commit()
+            conn.close()
+            
+            self.fernet = new_fernet
+            self.master_password = new_pw
+            messagebox.showinfo("Success", "Master password changed successfully")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to change password: {str(e)}")
+
+    def wipe_all_data(self):
+        if messagebox.askyesno("Wipe All Data", "Are you sure? This will delete the database and exit."):
+            try:
+                if os.path.exists(DB_NAME):
+                    os.remove(DB_NAME)
+                self.root.quit()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to delete database: {str(e)}")
+
+    def encrypt(self, text: str) -> str:
         if self.fernet is None:
             raise ValueError("Master password not unlocked")
         return self.fernet.encrypt(text.encode()).decode()
     
-    def decrypt(self, token: str)-> str:
+    def decrypt(self, token: str) -> str:
         if self.fernet is None:
             raise ValueError("Master password not unlocked")
         
@@ -523,18 +610,14 @@ class PasswordManager:
             token_bytes = token.encode()
             decrypted_bytes = self.fernet.decrypt(token_bytes)
             return decrypted_bytes.decode()
-        except Exception as e :
-            print(f"DEBUG: Cryptography Error: {type(e).__name__} - {e}")
+        except Exception as e:
             raise e 
 
     def load_passwords(self, event=None):
-        print("Debug: load_passwords called")
-
         if getattr(self, 'is_loading', False):
-            print("Debug: Glocked by lock")
             return 
         
-        if not hasattr(self, 'tree' ) or self.tree is None:
+        if not hasattr(self, 'tree') or self.tree is None:
             return
 
         self.is_loading = True 
@@ -546,7 +629,7 @@ class PasswordManager:
 
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
-            c.execute("SELECT id , website, username, password, notes FROM vault ORDER BY website")
+            c.execute("SELECT id, website, username, password, notes FROM vault ORDER BY website")
             rows = c.fetchall()
             conn.close()
 
@@ -563,13 +646,11 @@ class PasswordManager:
                 notes_lower = notes.lower() if notes else ""
 
                 if not search_item or (search_item in website_lower or search_item in username_lower or search_item in notes_lower):
-                    self.tree.insert("", tk.END, values=(website, username or "","********", notes or ""), tags=(id_,))
-
-                    count +=1
+                    self.tree.insert("", tk.END, values=(website, username or "", "********", notes or ""), tags=(id_,))
+                    count += 1
 
             if hasattr(self, 'status_bar') and self.status_bar:
                 self.status_bar.configure(text=f"Showing {count} entries")
-            # conn.close()
 
         finally:
             self.is_loading = False 
@@ -581,33 +662,28 @@ class PasswordManager:
         if self.tree is None:
             return
         selected = self.tree.selection()
-        if not selected :
-            messagebox.showwarning("No Selection","Please select an entry to edit") 
+        if not selected:
+            messagebox.showwarning("No Selection", "Please select an entry to edit") 
             return                
         item = self.tree.item(selected[0])
         entry_id = item['tags'][0]
         values = item['values']
 
-        #fetch real password for editing
         conn = sqlite3.connect(DB_NAME)
-        c= conn.cursor()
-        c.execute("SELECT password  FROM vault WHERE  id=?", (entry_id,))
+        c = conn.cursor()
+        c.execute("SELECT password FROM vault WHERE id=?", (entry_id,))
         result = c.fetchone()
         conn.close()
 
         if result:
             enc_pass = result[0]
-
             try:
                 real_password = self.decrypt(enc_pass)
-                self.show_entry_dailog(edit_mode=True, entry_id=entry_id, current=values, password =real_password)
+                self.show_entry_dailog(edit_mode=True, entry_id=entry_id, current=values, password=real_password)
             except:
                 messagebox.showerror("Error", "Failed to decrypt password")
 
-
-        # self.show_entry_dailog(edit_mode=True, entry_id = entry_id, current = values)
-
-    def show_entry_dailog(self, edit_mode= False, entry_id=None, current = None , password=None):
+    def show_entry_dailog(self, edit_mode=False, entry_id=None, current=None, password=None):
         dailog = ctk.CTkToplevel(self.root)
         dailog.title("Edit Entry" if edit_mode else "Add New Entry")
         dailog.geometry("500x550")
@@ -643,7 +719,6 @@ class PasswordManager:
         notes_entry = ctk.CTkEntry(dailog, width=460, font=("Satoshi", 13), placeholder_text="Add any additional details...")
         notes_entry.pack(pady=5, padx=20)
 
-        # generate password button
         def generate_password():
             import secrets
             import string
@@ -665,24 +740,23 @@ class PasswordManager:
             
         def save():
             website = website_entry.get().strip()
-            username =  username_entry.get().strip()
-            password_text =  password_entry.get().strip()
+            username = username_entry.get().strip()
+            password_text = password_entry.get().strip()
             notes = notes_entry.get().strip() or None
 
             if not website or not password_text:
                 messagebox.showerror("Error", "Website and Password are required")
                 return
             
-            enc_password =  self.encrypt(password_text)
-
+            enc_password = self.encrypt(password_text)
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
 
             if edit_mode:
                 c.execute('''UPDATE vault SET website=?, username=?, password=?, notes=?, modified_at=CURRENT_TIMESTAMP WHERE id=?''',
-                          (website, username,enc_password, notes, entry_id))
+                          (website, username, enc_password, notes, entry_id))
             else:
-                 c.execute('''INSERT INTO vault (website, username,password, notes) VALUES (?, ?, ?, ?)''',
+                 c.execute('''INSERT INTO vault (website, username, password, notes) VALUES (?, ?, ?, ?)''',
                           (website, username, enc_password, notes))  
             conn.commit()
             conn.close()
@@ -691,7 +765,6 @@ class PasswordManager:
             self.load_passwords()
             messagebox.showinfo("Success", "Password saved successfully")
 
-        #save button 
         btn_frame = ctk.CTkFrame(dailog, fg_color="transparent")
         btn_frame.pack(pady=20, padx=20, fill=tk.X)
         
@@ -702,7 +775,6 @@ class PasswordManager:
                   width=210, height=45, font=("Satoshi", 14, "bold")).pack(side=tk.LEFT, expand=True, padx=(5, 0))
 
     def delete_entry(self):
-
         if self.tree is None:
             return
         
@@ -713,7 +785,7 @@ class PasswordManager:
         item = self.tree.item(selected[0])
         website = item['values'][0]
 
-        if messagebox.askyesno("Delete entry", "Permanently delete this entry '{website}'?"):
+        if messagebox.askyesno("Delete entry", f"Permanently delete this entry '{website}'?"):
             entry_id = item['tags'][0]
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
@@ -740,28 +812,28 @@ class PasswordManager:
         
         entry_id = int(str_id)
 
-        try :
-            conn =sqlite3.connect(DB_NAME)
+        try:
+            conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
             c.execute("SELECT password FROM vault WHERE id=?", (entry_id,))
             result = c.fetchone()
             conn.close()
 
-            if  not result:
+            if not result:
                 return
             enc_pass = result[0]
         
-            password =  self.decrypt(enc_pass)
+            password = self.decrypt(enc_pass)
             pyperclip.copy(password)
 
             password = "x"*len(password)
             del password
 
+            delay = self.clip_delay_var.get()
             if hasattr(self, 'status_bar') and self.status_bar:
-                self.status_bar.configure(text="Password copied to clipboard (will clear in 30s)")
+                self.status_bar.configure(text=f"Password copied to clipboard (will clear in {delay}s)")
 
-            self.root.after(30000, lambda: pyperclip.copy(""))
-
+            self.root.after(delay * 1000, lambda: pyperclip.copy(""))
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to decrypt password: {str(e)}")
@@ -789,7 +861,7 @@ class PasswordManager:
 
         if username:
             pyperclip.copy(username)
-            if hasattr(self , 'status_bar') and self.status_bar:
+            if hasattr(self, 'status_bar') and self.status_bar:
                 self.status_bar.configure(text="Username copied to clipboard")
     
     def secure_exit(self):
@@ -798,23 +870,18 @@ class PasswordManager:
                 self.fernet = None
             if self.master_password:
                 self.master_password = None
-
             try:
                 pyperclip.copy("")
             except:
                 pass
             self.root.quit()
-            
-
 
 if __name__ == "__main__":
     import ctypes 
-
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
-    except  Exception:
+    except Exception:
         ctypes.windll.user32.SetProcessDPIAware()
-
 
     root = ctk.CTk()
     app = PasswordManager(root)
